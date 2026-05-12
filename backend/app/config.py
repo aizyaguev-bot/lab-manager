@@ -11,7 +11,7 @@ class Settings(BaseSettings):
     kvm_username: str = "admin"
     kvm_password: str = ""
     lab_manager_master_key: str = ""
-    database_url: str = "sqlite+aiosqlite:///./lab_manager.db"
+    database_url: str = f"sqlite+aiosqlite:///{pathlib.Path(__file__).parent.parent / 'lab_manager.db'}"
 
     model_config = SettingsConfigDict(
         env_file=str(_ENV_FILE),
