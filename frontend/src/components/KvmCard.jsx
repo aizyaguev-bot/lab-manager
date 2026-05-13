@@ -49,23 +49,26 @@ function PortThumb({ port, onClick }) {
   const active = port.status === "active";
   return (
     <button onClick={onClick}
-      className={`group relative rounded border ${active ? "border-zinc-700 hover:border-nv-400/60" : "border-zinc-800 hover:border-zinc-700"} cursor-pointer overflow-hidden bg-black aspect-[4/3]`}
+      className={`relative rounded border cursor-pointer overflow-hidden bg-zinc-950 aspect-[4/3] transition
+        ${active
+          ? "border-emerald-500/60 shadow-[0_0_8px_rgba(52,211,153,0.2)]"
+          : port.label ? "border-zinc-700 hover:border-zinc-600" : "border-zinc-800 hover:border-zinc-700"
+        }`}
       title={port.label}>
-      <div className="screen linux-term absolute inset-0 flex flex-col p-1.5 pb-4 text-[7px] leading-[10px]">
+      {/* Centered OPT name */}
+      <div className="absolute inset-0 flex items-center justify-center px-1 pb-4">
         {port.label ? (
-          <>
-            <div className={`truncate ${active ? "" : "text-zinc-600"}`}>{port.label}</div>
-            <div className="truncate text-zinc-600">port {port.number}</div>
-          </>
+          <span className={`font-mono font-semibold text-center text-[8px] leading-tight
+            ${active ? "text-emerald-300" : "text-zinc-400"}`}>
+            {port.label}
+          </span>
         ) : (
-          <div className="absolute inset-0 flex items-center justify-center text-zinc-700 text-[9px]">empty</div>
+          <span className="text-zinc-700 text-[8px]">empty</span>
         )}
       </div>
-      <div className="absolute inset-x-0 bottom-0 px-1.5 py-1 bg-gradient-to-t from-black/90 to-transparent">
-        <div className="flex items-center gap-1">
-          <span className="text-[10px] font-mono text-zinc-400">P{port.number}</span>
-          {active && <span className="text-[10px] text-zinc-200 truncate flex-1">{port.label}</span>}
-        </div>
+      {/* Bottom bar */}
+      <div className="absolute inset-x-0 bottom-0 px-1 py-0.5 bg-gradient-to-t from-black to-transparent flex items-center gap-1">
+        <span className="text-[8px] font-mono text-zinc-500">P{port.number}</span>
       </div>
       {active && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />}
     </button>
