@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-import uuid
+import uuid, json
 
 from ..database import get_db
 from ..models import Device
@@ -54,6 +54,18 @@ async def update_device(device_id: str, body: DeviceCreate, db: AsyncSession = D
     await db.commit()
     await db.refresh(dev)
     return dev
+
+
+@router.patch("/{device_id}/labels", status_code=200)
+async def update_labels(
+    device_id: str,
+    labels: dict,
+    db: AsyncSession = Depends(get_db),
+):
+    dev = await _get_or_404(device_id, db)
+    dev.labels_json = json.dumps({str(k): v for k, v in labels.items() if v})
+    await db.commit()
+    return {"ok": True}
 
 
 @router.delete("/{device_id}", status_code=204)

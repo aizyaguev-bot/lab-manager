@@ -1,11 +1,32 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import StatusDot from "../components/StatusDot";
 
-export default function KvmDetail({ device, status, onBack, onPortClick, onDelete }) {
+export default function KvmDetail({ device, status, onBack, onPortClick, onDelete, onLabelsSave }) {
   if (!device) return null;
   const ports = status?.ports || [];
   const active = ports.filter(p => p.status === "active").length;
   const isLx = device.model?.includes("LX");
+
+  const [editMode, setEditMode] = useState(false);
+  const [draftLabels, setDraftLabels] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  function startEdit() {
+    const current = {};
+    ports.forEach(p => { current[p.number] = p.label || ""; });
+    setDraftLabels(current);
+    setEditMode(true);
+  }
+
+  async function saveLabels() {
+    setSaving(true);
+    try {
+      await onLabelsSave(draftLabels);
+      setEditMode(false);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <main className="flex-1 px-6 py-5 max-w-[1600px] w-full mx-auto">
@@ -27,7 +48,26 @@ export default function KvmDetail({ device, status, onBack, onPortClick, onDelet
             </div>
           )}
           <div className="p-4">
-            <div className="text-xs uppercase tracking-wider text-zinc-500 mb-3">Ports</div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs uppercase tracking-wider text-zinc-500">Ports</div>
+              {!editMode ? (
+                <button onClick={startEdit}
+                  className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-nv-400 px-2 py-1 rounded hover:bg-zinc-800 transition">
+                  <PencilIcon /> Edit Labels
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setEditMode(false)}
+                    className="text-xs text-zinc-400 hover:text-zinc-200 px-3 py-1 rounded border border-zinc-700 hover:bg-zinc-800 transition">
+                    Cancel
+                  </button>
+                  <button onClick={saveLabels} disabled={saving}
+                    className="text-xs bg-nv-400 hover:bg-nv-300 text-zinc-950 font-semibold px-3 py-1 rounded transition disabled:opacity-50">
+                    {saving ? "Saving…" : "Save"}
+                  </button>
+                </div>
+              )}
+            </div>
             {ports.length === 0 ? (
               <div className="text-zinc-600 text-sm text-center py-8">
                 {status?.reachable === false ? `Cannot reach device: ${status.error}` : "Loading…"}
@@ -36,27 +76,39 @@ export default function KvmDetail({ device, status, onBack, onPortClick, onDelet
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {ports.map(p => (
                   <div key={p.number} className="space-y-1">
-                    <button onClick={() => onPortClick(p)}
-                      className={`w-full relative rounded border ${p.status !== "empty" ? "border-zinc-700 hover:border-nv-400/60" : "border-zinc-800"} cursor-pointer overflow-hidden bg-black aspect-[4/3]`}>
-                      <div className="screen linux-term absolute inset-0 flex flex-col p-3 pb-7 text-xs leading-4">
-                        {p.label ? (
-                          <>
-                            <div className={`truncate ${p.status !== "empty" ? "" : "text-zinc-600"}`}>{p.label}</div>
-                            <div className="text-zinc-600">port {p.number}</div>
-                          </>
-                        ) : (
-                          <div className="absolute inset-0 flex items-center justify-center text-zinc-700 text-xs">empty</div>
-                        )}
+                    {editMode ? (
+                      <div className="rounded border border-nv-400/40 bg-nv-400/5 p-3 flex flex-col gap-2">
+                        <span className="text-xs font-mono text-zinc-500">Port {p.number}</span>
+                        <input
+                          value={draftLabels[p.number] ?? ""}
+                          onChange={e => setDraftLabels(d => ({ ...d, [p.number]: e.target.value }))}
+                          placeholder="Empty"
+                          className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm text-zinc-200 focus:outline-none focus:border-nv-400 w-full"
+                        />
                       </div>
-                      <div className="absolute inset-x-0 bottom-0 px-2 py-1.5 bg-gradient-to-t from-black/90 to-transparent">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-mono text-zinc-500 text-xs">P{p.number}</span>
-                          <StatusDot status={p.status} />
-                          <span className="truncate flex-1 text-zinc-200 text-xs">{p.label}</span>
+                    ) : (
+                      <button onClick={() => onPortClick(p)}
+                        className={`w-full relative rounded border ${p.status !== "empty" ? "border-zinc-700 hover:border-nv-400/60" : "border-zinc-800"} cursor-pointer overflow-hidden bg-black aspect-[4/3]`}>
+                        <div className="screen linux-term absolute inset-0 flex flex-col p-3 pb-7 text-xs leading-4">
+                          {p.label ? (
+                            <>
+                              <div className={`truncate ${p.status !== "empty" ? "" : "text-zinc-600"}`}>{p.label}</div>
+                              <div className="text-zinc-600">port {p.number}</div>
+                            </>
+                          ) : (
+                            <div className="absolute inset-0 flex items-center justify-center text-zinc-700 text-xs">empty</div>
+                          )}
                         </div>
-                      </div>
-                      {p.status === "active" && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />}
-                    </button>
+                        <div className="absolute inset-x-0 bottom-0 px-2 py-1.5 bg-gradient-to-t from-black/90 to-transparent">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-mono text-zinc-500 text-xs">P{p.number}</span>
+                            <StatusDot status={p.status} />
+                            <span className="truncate flex-1 text-zinc-200 text-xs">{p.label}</span>
+                          </div>
+                        </div>
+                        {p.status === "active" && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />}
+                      </button>
+                    )}
                   </div>
                 ))}
               </div>
@@ -87,6 +139,15 @@ export default function KvmDetail({ device, status, onBack, onPortClick, onDelet
         </aside>
       </div>
     </main>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    </svg>
   );
 }
 

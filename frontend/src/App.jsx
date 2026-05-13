@@ -207,6 +207,10 @@ height:100vh;font-family:system-ui,sans-serif;color:#a1a1aa;flex-direction:colum
           onBack={() => setView({ kind: "dashboard" })}
           onPortClick={(port) => openKvmConsole(view.id, port.number)}
           onDelete={() => { handleDeleteDevice(view.id); setView({ kind: "dashboard" }); }}
+          onLabelsSave={async (labels) => {
+            await api.updateLabels(view.id, labels);
+            await loadKvmStatus(view.id);
+          }}
         />
       )}
 

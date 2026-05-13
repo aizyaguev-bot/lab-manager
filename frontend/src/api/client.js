@@ -19,6 +19,7 @@ export const api = {
   getDevices: ()              => req("GET",    "/api/devices/"),
   createDevice: (d)           => req("POST",   "/api/devices/", d),
   updateDevice: (id, d)       => req("PUT",    `/api/devices/${id}`, d),
+  updateLabels: (id, labels)  => req("PATCH",  `/api/devices/${id}/labels`, labels),
   deleteDevice: (id)          => req("DELETE", `/api/devices/${id}`),
 
   // PDU
