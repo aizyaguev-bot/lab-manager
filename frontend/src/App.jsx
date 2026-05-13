@@ -21,6 +21,13 @@ export default function App() {
 
   async function openKvmConsole(deviceId, portNumber) {
     const win = window.open("about:blank", "_blank");
+    if (!win) return;
+    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Connecting…</title>
+<style>body{margin:0;background:#0a0a0a;display:flex;align-items:center;justify-content:center;
+height:100vh;font-family:system-ui,sans-serif;color:#a1a1aa;flex-direction:column;gap:12px}
+.d{width:10px;height:10px;border-radius:50%;background:#76b900;animation:p .8s ease-in-out infinite}
+@keyframes p{0%,100%{opacity:.3}50%{opacity:1}}</style></head>
+<body><div class="d"></div><div style="font-size:14px">Connecting to KVM…</div></body></html>`);
     try {
       const resp = await fetch(`/api/kvms/${deviceId}/console-url?port=${portNumber}`);
       const { url } = await resp.json();

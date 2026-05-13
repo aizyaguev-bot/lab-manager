@@ -1,16 +1,17 @@
-import sys, os
+import sys, os, base64, secrets
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from contextlib import asynccontextmanager
 import pathlib
 
 from .database import init_db
 from .routers import devices, pdus, kvms, kvm_proxy
+from .config import get_settings
 
 FRONTEND_DIST = pathlib.Path(__file__).parent.parent.parent / "frontend" / "dist"
 
@@ -22,6 +23,26 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="Lab Manager", lifespan=lifespan)
+
+@app.middleware("http")
+async def basic_auth(request: Request, call_next):
+    password = get_settings().lab_manager_password
+    if not password:
+        return await call_next(request)
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Basic "):
+        try:
+            decoded = base64.b64decode(auth[6:]).decode()
+            _, provided = decoded.split(":", 1)
+            if secrets.compare_digest(provided, password):
+                return await call_next(request)
+        except Exception:
+            pass
+    return Response(
+        status_code=401,
+        headers={"WWW-Authenticate": 'Basic realm="Lab Manager"'},
+        content="Unauthorized",
+    )
 
 app.add_middleware(
     CORSMiddleware,

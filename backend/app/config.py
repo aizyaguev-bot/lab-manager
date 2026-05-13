@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     kvm_username: str = "admin"
     kvm_password: str = ""
     lab_manager_master_key: str = ""
+    lab_manager_password: str = ""          # shared team password; empty = no auth
     database_url: str = f"sqlite+aiosqlite:///{pathlib.Path(__file__).parent.parent / 'lab_manager.db'}"
 
     model_config = SettingsConfigDict(

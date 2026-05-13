@@ -37,8 +37,10 @@ from ..crypto import decrypt
 log = logging.getLogger(__name__)
 router = APIRouter()
 
-# Per-device session cookies (key = device_id, value = "Cookie: ..." string)
+# Per-device session cookies (key = device_id, value = cookie string)
 _sessions: dict[str, str] = {}
+# Pre-cached portId map per device (port_number → portId string)
+_port_ids: dict[str, dict[int, str]] = {}
 
 STRIP_RESP_HEADERS = frozenset({
     "x-frame-options",
@@ -150,11 +152,14 @@ def _rewrite(text: str, device_id: str, dev_ip: str) -> str:
 # ---------------------------------------------------------------------------
 
 async def ensure_session(device_id: str, dev) -> None:
-    """Establish a KVM session if one isn't cached yet."""
-    if device_id in _sessions:
-        return
-    async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=20) as client:
-        await _login(device_id, dev, client)
+    """Establish a KVM session and pre-cache portIds so console-url is instant."""
+    if device_id not in _sessions:
+        async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=20) as client:
+            await _login(device_id, dev, client)
+    if device_id in _sessions and device_id not in _port_ids:
+        info = await _get_kvm_session_info(device_id, dev, _sessions[device_id])
+        _port_ids[device_id] = info["port_ids"]
+        log.info("KVM %s: cached %d portIds", device_id, len(_port_ids[device_id]))
 
 
 # ---------------------------------------------------------------------------
@@ -197,8 +202,9 @@ async def kvm_console_url(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Returns a jsclient URL with the KVM SESSION_ID and portId extracted from
-    sidebar.asp so jsclient authenticates without a browser cookie.
+    Returns a jsclient URL. Uses pp_session_id (the web session cookie) as the
+    hash sessionId — jsclient reads getHashValue("sessionId") first, so no
+    browser cookie needs to be set.
     """
     dev = await _get_device(device_id, db)
 
@@ -207,13 +213,26 @@ async def kvm_console_url(
             await _login(device_id, dev, client)
 
     cookie_str = _sessions.get(device_id, "")
-    info = await _get_kvm_session_info(device_id, dev, cookie_str)
+
+    # Extract pp_session_id — this is what jsclient uses for auth
+    session_id = None
+    m = re.search(r'pp_session_id=([^;]+)', cookie_str)
+    if m:
+        session_id = m.group(1).strip()
+
+    # Use pre-cached portIds if available; fall back to sidebar.asp fetch
+    if device_id in _port_ids:
+        port_ids = _port_ids[device_id]
+    else:
+        info = await _get_kvm_session_info(device_id, dev, cookie_str)
+        port_ids = info["port_ids"]
+        _port_ids[device_id] = port_ids
 
     fragment_parts = []
-    if info["session_id"]:
-        fragment_parts.append(f"sessionId={info['session_id']}")
+    if session_id:
+        fragment_parts.append(f"sessionId={session_id}")
     if port:
-        port_id = info["port_ids"].get(port)
+        port_id = port_ids.get(port)
         if port_id:
             fragment_parts.append(f"portId={port_id}")
         fragment_parts.append(f"portNo={port}")
@@ -222,7 +241,7 @@ async def kvm_console_url(
     if fragment_parts:
         url += "#" + "&".join(fragment_parts)
 
-    log.debug("KVM %s console URL: %s", device_id, url)
+    log.info("KVM %s console URL: %s", device_id, url)
     return {"url": url}
 
 
@@ -245,12 +264,23 @@ async def kvm_autologin(
             await _login(device_id, dev, client)
 
     cookie_str = _sessions.get(device_id, "")
-    info = await _get_kvm_session_info(device_id, dev, cookie_str)
+
+    session_id = None
+    m = re.search(r'pp_session_id=([^;]+)', cookie_str)
+    if m:
+        session_id = m.group(1).strip()
+
+    if device_id in _port_ids:
+        port_ids = _port_ids[device_id]
+    else:
+        info = await _get_kvm_session_info(device_id, dev, cookie_str)
+        port_ids = info["port_ids"]
+        _port_ids[device_id] = port_ids
 
     frag_parts = []
-    if info["session_id"]:
-        frag_parts.append(f"sessionId={info['session_id']}")
-    port_id = info["port_ids"].get(port) if port else None
+    if session_id:
+        frag_parts.append(f"sessionId={session_id}")
+    port_id = port_ids.get(port) if port else None
     if port_id:
         frag_parts.append(f"portId={port_id}")
     if port:
