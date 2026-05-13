@@ -13,6 +13,18 @@ export default function App() {
   const [pduStatuses, setPduStatuses] = useState({});   // { id: PduStatus }
   const [kvmStatuses, setKvmStatuses] = useState({});   // { id: KvmStatus }
   const [view, setView] = useState({ kind: "dashboard" });
+
+  function openDetail(newView) {
+    history.pushState({ view: newView }, "");
+    setView(newView);
+  }
+
+  useEffect(() => {
+    const onPop = () => setView({ kind: "dashboard" });
+    window.addEventListener("popstate", onPop);
+    return () => window.removeEventListener("popstate", onPop);
+  }, []);
+
   const [filter, setFilter] = useState("all");
   const [rackFilter, setRackFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -159,7 +171,7 @@ height:100vh;font-family:system-ui,sans-serif;color:#a1a1aa;flex-direction:colum
 
   return (
     <div className="min-h-screen flex flex-col">
-      <Header search={search} setSearch={setSearch} onAdd={() => setAddOpen(true)} onHome={() => setView({ kind: "dashboard" })} />
+      <Header search={search} setSearch={setSearch} onAdd={() => setAddOpen(true)} onHome={() => { if (view.kind !== "dashboard") history.back(); }} />
       <StatsBar stats={stats} />
 
       {view.kind === "dashboard" && (
@@ -168,13 +180,13 @@ height:100vh;font-family:system-ui,sans-serif;color:#a1a1aa;flex-direction:colum
           <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4 mt-5">
             {(filter === "all" || filter === "pdus") && visiblePdus.map(p =>
               <PduCard key={p.id} device={p} status={pduStatuses[p.id]}
-                onOpen={() => setView({ kind: "pdu", id: p.id })}
+                onOpen={() => openDetail({ kind: "pdu", id: p.id })}
                 onOutletAction={(n, a) => handleOutletAction(p, n, a)}
               />
             )}
             {(filter === "all" || filter === "kvms") && visibleKvms.map(k =>
               <KvmCard key={k.id} device={k} status={kvmStatuses[k.id]}
-                onOpen={() => setView({ kind: "kvm", id: k.id })}
+                onOpen={() => openDetail({ kind: "kvm", id: k.id })}
                 onPortClick={(port) => openKvmConsole(k.id, port.number)}
               />
             )}
@@ -194,9 +206,9 @@ height:100vh;font-family:system-ui,sans-serif;color:#a1a1aa;flex-direction:colum
         <PduDetail
           device={pdus.find(p => p.id === view.id)}
           status={pduStatuses[view.id]}
-          onBack={() => setView({ kind: "dashboard" })}
+          onBack={() => history.back()}
           onOutletAction={(n, a) => handleOutletAction(pdus.find(p => p.id === view.id), n, a)}
-          onDelete={() => { handleDeleteDevice(view.id); setView({ kind: "dashboard" }); }}
+          onDelete={() => { handleDeleteDevice(view.id); history.back(); }}
         />
       )}
 
@@ -204,9 +216,9 @@ height:100vh;font-family:system-ui,sans-serif;color:#a1a1aa;flex-direction:colum
         <KvmDetail
           device={kvms.find(k => k.id === view.id)}
           status={kvmStatuses[view.id]}
-          onBack={() => setView({ kind: "dashboard" })}
+          onBack={() => history.back()}
           onPortClick={(port) => openKvmConsole(view.id, port.number)}
-          onDelete={() => { handleDeleteDevice(view.id); setView({ kind: "dashboard" }); }}
+          onDelete={() => { handleDeleteDevice(view.id); history.back(); }}
           onLabelsSave={async (labels) => {
             await api.updateLabels(view.id, labels);
             await loadKvmStatus(view.id);
