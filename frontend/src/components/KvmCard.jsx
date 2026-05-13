@@ -47,30 +47,32 @@ export default function KvmCard({ device, status, onOpen, onPortClick }) {
 
 function PortThumb({ port, onClick }) {
   const active = port.status === "active";
+  const occupied = !!port.label;
   return (
     <button onClick={onClick}
-      className={`relative rounded border cursor-pointer overflow-hidden bg-zinc-950 aspect-[4/3] transition
+      className={`relative rounded border cursor-pointer overflow-hidden aspect-[4/3] transition
         ${active
-          ? "border-emerald-500/60 shadow-[0_0_8px_rgba(52,211,153,0.2)]"
-          : port.label ? "border-zinc-700 hover:border-zinc-600" : "border-zinc-800 hover:border-zinc-700"
+          ? "bg-emerald-950/40 border-emerald-500/60 shadow-[0_0_8px_rgba(52,211,153,0.2)]"
+          : occupied
+            ? "bg-nv-400/5 border-nv-400/40 hover:border-nv-400/70"
+            : "bg-zinc-950 border-zinc-800 hover:border-zinc-700"
         }`}
       title={port.label}>
-      {/* Centered OPT name */}
       <div className="absolute inset-0 flex items-center justify-center px-1 pb-4">
-        {port.label ? (
+        {occupied ? (
           <span className={`font-mono font-semibold text-center text-[8px] leading-tight
-            ${active ? "text-emerald-300" : "text-zinc-400"}`}>
+            ${active ? "text-emerald-300" : "text-nv-300"}`}>
             {port.label}
           </span>
         ) : (
-          <span className="text-zinc-700 text-[8px]">empty</span>
+          <span className="text-zinc-700 text-[8px]">—</span>
         )}
       </div>
-      {/* Bottom bar */}
       <div className="absolute inset-x-0 bottom-0 px-1 py-0.5 bg-gradient-to-t from-black to-transparent flex items-center gap-1">
         <span className="text-[8px] font-mono text-zinc-500">P{port.number}</span>
       </div>
       {active && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_#34d399]" />}
+      {occupied && !active && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-nv-400/60" />}
     </button>
   );
 }

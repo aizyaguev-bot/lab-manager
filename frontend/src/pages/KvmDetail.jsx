@@ -124,35 +124,36 @@ export default function KvmDetail({ device, status, onBack, onPortClick, onDelet
 
 function PortCard({ port, onClick }) {
   const active = port.status === "active";
+  const occupied = !!port.label;
   return (
     <button onClick={onClick}
-      className={`w-full relative rounded border cursor-pointer overflow-hidden bg-zinc-950 aspect-[4/3] transition
+      className={`w-full relative rounded border cursor-pointer overflow-hidden aspect-[4/3] transition
         ${active
-          ? "border-emerald-500/70 shadow-[0_0_14px_rgba(52,211,153,0.25)]"
-          : port.label ? "border-zinc-700 hover:border-nv-400/50" : "border-zinc-800 hover:border-zinc-700"
+          ? "bg-emerald-950/40 border-emerald-500/70 shadow-[0_0_14px_rgba(52,211,153,0.25)]"
+          : occupied
+            ? "bg-nv-400/5 border-nv-400/40 hover:border-nv-400/70"
+            : "bg-zinc-950 border-zinc-800 hover:border-zinc-700"
         }`}>
 
-      {/* Centered OPT name */}
       <div className="absolute inset-0 flex flex-col items-center justify-center px-2 pb-6">
-        {port.label ? (
+        {occupied ? (
           <span className={`font-mono font-semibold text-center leading-tight
-            ${active ? "text-emerald-300 text-base" : "text-zinc-300 text-sm"}`}>
+            ${active ? "text-emerald-300 text-base" : "text-nv-300 text-sm"}`}>
             {port.label}
           </span>
         ) : (
-          <span className="text-zinc-700 text-xs">empty</span>
+          <span className="text-zinc-700 text-xs">—</span>
         )}
       </div>
 
-      {/* Bottom bar */}
       <div className="absolute inset-x-0 bottom-0 px-2 py-1.5 bg-gradient-to-t from-black to-transparent flex items-center gap-1.5">
         <span className="font-mono text-zinc-500 text-[11px]">P{port.number}</span>
         <StatusDot status={port.status} />
         {active && <span className="ml-auto text-[10px] font-bold text-emerald-400 tracking-wide">ACTIVE</span>}
       </div>
 
-      {/* Glow dot */}
-      {active && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />}
+      {active   && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_8px_#34d399]" />}
+      {occupied && !active && <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-nv-400/70" />}
     </button>
   );
 }
