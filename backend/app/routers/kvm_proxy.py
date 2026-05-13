@@ -114,9 +114,55 @@ def _norm_location(location: str, dev_ip: str, device_id: str) -> str:
     return loc
 
 
-def _rewrite(text: str, device_id: str, dev_ip: str) -> str:
+# Injected into every HTML page served through the proxy.
+# 1. Overrides location.hostname/host/origin so jsclient uses KVM IP for URL construction.
+# 2. Intercepts ALL WebSocket connections not already going to our proxy path.
+# 3. Intercepts fetch/XHR requests targeting the KVM IP.
+_OVERRIDE_TMPL = (
+    '<script>\n'
+    '(function(){\n'
+    '  var KI="%(kvm_ip)s",P="%(proxy)s",O=window.location;\n'
+    '  try{Object.defineProperty(window,"location",{configurable:true,get:function(){\n'
+    '    return new Proxy(O,{get:function(t,p){\n'
+    '      if(p==="hostname"||p==="host")return KI;\n'
+    '      if(p==="origin")return "https://"+KI;\n'
+    '      if(p==="protocol")return "https:";\n'
+    '      var v=t[p];return typeof v==="function"?v.bind(t):v;\n'
+    '    }});\n'
+    '  }})}catch(e){}\n'
+    '  var _W=window.WebSocket;\n'
+    '  var _pws=(O.protocol==="https:"?"wss":"ws")+"://"+O.host+P+"/ws";\n'
+    '  window.WebSocket=function PW(u,p){\n'
+    '    u=String(u);\n'
+    '    if(u.indexOf(_pws)!==0)u=_pws+u.replace(/^wss?:\\/\\/[^\\/]*/,"");\n'
+    '    return p!==undefined?new _W(u,p):new _W(u);\n'
+    '  };\n'
+    '  window.WebSocket.prototype=_W.prototype;\n'
+    '  ["CONNECTING","OPEN","CLOSING","CLOSED"].forEach(function(k,i){window.WebSocket[k]=i;});\n'
+    '  var _kiRe=new RegExp("^https?://"+KI.split(".").join("\\\\."));\n'
+    '  var _f=window.fetch;\n'
+    '  window.fetch=function(r,o){\n'
+    '    if(typeof r==="string"&&_kiRe.test(r))r=O.origin+P+r.replace(/^https?:\\/\\/[^\\/]*/,"");\n'
+    '    return _f.call(this,r,o);\n'
+    '  };\n'
+    '  var _x=XMLHttpRequest.prototype.open;\n'
+    '  XMLHttpRequest.prototype.open=function(m,u){\n'
+    '    if(typeof u==="string"&&_kiRe.test(u))u=O.origin+P+u.replace(/^https?:\\/\\/[^\\/]*/,"");\n'
+    '    return _x.apply(this,[m,u].concat([].slice.call(arguments,2)));\n'
+    '  };\n'
+    '})();\n'
+    '</script>'
+)
+
+
+def _rewrite(text: str, device_id: str, dev_ip: str, inject_head: str = "") -> str:
     """Rewrite all URLs that reference the KVM device to go through our proxy."""
     proxy = f"/api/kvms/{device_id}/proxy"
+
+    # Inject override script right after <head>
+    if inject_head:
+        text = re.sub(r'<head\b[^>]*>', lambda m: m.group(0) + inject_head, text, count=1, flags=re.IGNORECASE)
+
     # Normalize :443 in absolute URLs
     text = text.replace(f"https://{dev_ip}:443/", f"https://{dev_ip}/")
 
@@ -237,11 +283,13 @@ async def kvm_console_url(
             fragment_parts.append(f"portId={port_id}")
         fragment_parts.append(f"portNo={port}")
 
-    url = f"https://{dev.ip}/jsclient/Client.asp"
+    # Serve jsclient through our proxy so all traffic comes from the VM's IP
+    # (which matches the authenticated session), not the user's browser IP.
+    url = f"/api/kvms/{device_id}/proxy/jsclient/Client.asp"
     if fragment_parts:
         url += "#" + "&".join(fragment_parts)
 
-    log.info("KVM %s console URL: %s", device_id, url)
+    log.info("KVM %s console URL (proxy): %s", device_id, url)
     return {"url": url}
 
 
@@ -390,7 +438,13 @@ async def kvm_proxy(
         if content and ("text/html" in ct or "javascript" in ct or "text/css" in ct):
             try:
                 text = content.decode("utf-8", errors="replace")
-                text = _rewrite(text, device_id, dev.ip)
+                inject = ""
+                if "text/html" in ct:
+                    inject = _OVERRIDE_TMPL % {
+                        "kvm_ip": dev.ip,
+                        "proxy": f"/api/kvms/{device_id}/proxy",
+                    }
+                text = _rewrite(text, device_id, dev.ip, inject_head=inject)
                 content = text.encode("utf-8")
                 resp_headers.pop("content-length", None)
                 resp_headers.pop("Content-Length", None)

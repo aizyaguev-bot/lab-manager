@@ -31,7 +31,7 @@ height:100vh;font-family:system-ui,sans-serif;color:#a1a1aa;flex-direction:colum
     try {
       const resp = await fetch(`/api/kvms/${deviceId}/console-url?port=${portNumber}`);
       const { url } = await resp.json();
-      win.location.href = url;
+      win.location.href = url.startsWith('/') ? window.location.origin + url : url;
     } catch {
       win.close();
     }
