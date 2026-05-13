@@ -14,5 +14,6 @@ class Device(Base):
     port_count: Mapped[int] = mapped_column(Integer, default=0)
     username_enc: Mapped[str] = mapped_column(String, default="")
     password_enc: Mapped[str] = mapped_column(String, default="")
+    labels_json: Mapped[str] = mapped_column(String, default="{}")  # JSON: {"port_number": "label"}
     enabled: Mapped[bool] = mapped_column(Boolean, default=True)
     notes: Mapped[str] = mapped_column(String, default="")

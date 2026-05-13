@@ -29,7 +29,7 @@ export default function KvmCard({ device, status, onOpen, onPortClick }) {
       <div className="p-4">
         {ports.length > 0 ? (
           <div className="grid grid-cols-4 gap-1.5">
-            {ports.map(p => <PortThumb key={p.number} port={p} onClick={() => p.status !== "empty" && onPortClick(p)} />)}
+            {ports.map(p => <PortThumb key={p.number} port={p} onClick={() => onPortClick(p)} />)}
           </div>
         ) : (
           <div className="text-xs text-zinc-600 text-center py-4">
@@ -48,14 +48,14 @@ export default function KvmCard({ device, status, onOpen, onPortClick }) {
 function PortThumb({ port, onClick }) {
   const active = port.status === "active";
   return (
-    <button onClick={onClick} disabled={!active}
-      className={`group relative rounded border ${active ? "border-zinc-700 hover:border-nv-400/60 cursor-pointer" : "border-zinc-800 cursor-not-allowed"} overflow-hidden bg-black aspect-[4/3]`}
+    <button onClick={onClick}
+      className={`group relative rounded border ${active ? "border-zinc-700 hover:border-nv-400/60" : "border-zinc-800 hover:border-zinc-700"} cursor-pointer overflow-hidden bg-black aspect-[4/3]`}
       title={port.label}>
-      <div className={`screen linux-term absolute inset-0 flex flex-col p-1.5 pb-4 text-[7px] leading-[10px] ${!active ? "opacity-20" : ""}`}>
-        {active ? (
+      <div className="screen linux-term absolute inset-0 flex flex-col p-1.5 pb-4 text-[7px] leading-[10px]">
+        {port.label ? (
           <>
-            <div className="truncate">{port.label}</div>
-            <div className="truncate text-zinc-500">port {port.number}</div>
+            <div className={`truncate ${active ? "" : "text-zinc-600"}`}>{port.label}</div>
+            <div className="truncate text-zinc-600">port {port.number}</div>
           </>
         ) : (
           <div className="absolute inset-0 flex items-center justify-center text-zinc-700 text-[9px]">empty</div>

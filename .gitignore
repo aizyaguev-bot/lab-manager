@@ -15,3 +15,7 @@ build/
 # Database — contains encrypted credentials
 backend/lab_manager.db
 backend/*.db
+# Build output copied to backend (use frontend/dist instead)
+backend/static/
+# Debug scripts
+probe_kvm*.py

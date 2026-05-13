@@ -36,12 +36,14 @@ export default function KvmDetail({ device, status, onBack, onPortClick, onDelet
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {ports.map(p => (
                   <div key={p.number} className="space-y-1">
-                    <button onClick={() => p.status !== "empty" && onPortClick(p)}
-                      disabled={p.status === "empty"}
-                      className={`w-full relative rounded border ${p.status !== "empty" ? "border-zinc-700 hover:border-nv-400/60 cursor-pointer" : "border-zinc-800 cursor-not-allowed"} overflow-hidden bg-black aspect-[4/3]`}>
+                    <button onClick={() => onPortClick(p)}
+                      className={`w-full relative rounded border ${p.status !== "empty" ? "border-zinc-700 hover:border-nv-400/60" : "border-zinc-800"} cursor-pointer overflow-hidden bg-black aspect-[4/3]`}>
                       <div className="screen linux-term absolute inset-0 flex flex-col p-3 pb-7 text-xs leading-4">
-                        {p.status !== "empty" ? (
-                          <><div className="truncate">{p.label}</div><div className="text-zinc-500">port {p.number}</div></>
+                        {p.label ? (
+                          <>
+                            <div className={`truncate ${p.status !== "empty" ? "" : "text-zinc-600"}`}>{p.label}</div>
+                            <div className="text-zinc-600">port {p.number}</div>
+                          </>
                         ) : (
                           <div className="absolute inset-0 flex items-center justify-center text-zinc-700 text-xs">empty</div>
                         )}

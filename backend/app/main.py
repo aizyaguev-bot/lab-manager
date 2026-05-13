@@ -10,7 +10,7 @@ from contextlib import asynccontextmanager
 import pathlib
 
 from .database import init_db
-from .routers import devices, pdus, kvms
+from .routers import devices, pdus, kvms, kvm_proxy
 
 FRONTEND_DIST = pathlib.Path(__file__).parent.parent.parent / "frontend" / "dist"
 
@@ -33,6 +33,7 @@ app.add_middleware(
 app.include_router(devices.router)
 app.include_router(pdus.router)
 app.include_router(kvms.router)
+app.include_router(kvm_proxy.router)
 
 
 # Serve built React frontend if it exists

@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
+import json
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -6,6 +7,7 @@ from ..database import get_db
 from ..models import Device
 from ..schemas import KvmStatus, KvmPort
 from ..routers.devices import get_creds
+from ..routers.kvm_proxy import ensure_session
 from drivers.raritan_kvm import RaritanKvmDriver, RaritanKvmError
 
 router = APIRouter(prefix="/api/kvms", tags=["kvms"])
@@ -22,15 +24,29 @@ async def _get_kvm_or_404(device_id: str, db: AsyncSession) -> Device:
 
 
 @router.get("/{device_id}/status", response_model=KvmStatus)
-async def kvm_status(device_id: str, db: AsyncSession = Depends(get_db)):
+async def kvm_status(
+    device_id: str,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
     dev = await _get_kvm_or_404(device_id, db)
     username, password = get_creds(dev)
     driver = RaritanKvmDriver(dev.ip, username, password, model=dev.model)
     try:
-        ports_raw = await driver.get_ports()
+        reachable = await driver.ping()
+        if not reachable:
+            return KvmStatus(device_id=device_id, reachable=False, error="Cannot reach device")
+        ports_raw = await driver.get_ports(port_count=dev.port_count)
+        labels = json.loads(dev.labels_json or "{}")
+        for p in ports_raw:
+            key = str(p["number"])
+            if key in labels:
+                p["label"] = labels[key]
         ports = [KvmPort(**p) for p in ports_raw]
+        # Warm up the proxy session in the background so console opens instantly
+        background_tasks.add_task(ensure_session, device_id, dev)
         return KvmStatus(device_id=device_id, reachable=True, ports=ports)
-    except RaritanKvmError as e:
+    except Exception as e:
         return KvmStatus(device_id=device_id, reachable=False, error=str(e))
     finally:
         await driver.close()
@@ -42,22 +58,7 @@ async def kvm_viewer_url(
     port_number: int,
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Returns the viewer URL(s) for a KVM port.
-    Frontend uses embed_url for the iframe, launch_url for the new-tab button.
-    Also attempts to fetch a fresh session token for KX III.
-    """
     dev = await _get_kvm_or_404(device_id, db)
-    username, password = get_creds(dev)
-    driver = RaritanKvmDriver(dev.ip, username, password, model=dev.model)
-
-    viewer = driver.get_viewer_url(port_number)
-
-    if viewer["can_embed"]:
-        token = await driver.get_session_token()
-        if token:
-            viewer["embed_url"] = f"{viewer['embed_url']}&token={token}"
-            viewer["launch_url"] = f"{viewer['launch_url']}&token={token}"
-
-    await driver.close()
-    return viewer
+    proxy_url = f"/api/kvms/{device_id}/proxy/home.asp"
+    launch_url = f"https://{dev.ip}/home.asp"
+    return {"embed_url": proxy_url, "launch_url": launch_url, "can_embed": True}

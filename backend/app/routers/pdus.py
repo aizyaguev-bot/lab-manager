@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -29,6 +30,12 @@ async def pdu_status(device_id: str, db: AsyncSession = Depends(get_db)):
     try:
         outlets_raw = await driver.get_outlets()
         inlet = await driver.get_inlet()
+        labels = json.loads(dev.labels_json or "{}")
+        for o in outlets_raw:
+            key = str(o["number"])
+            # Only apply DB label when firmware has no custom name (default "Outlet N")
+            if key in labels and o["label"] == f"Outlet {o['number']}":
+                o["label"] = labels[key]
         outlets = [OutletState(**o) for o in outlets_raw]
         total_watts = sum(o.watts for o in outlets)
         return PduStatus(

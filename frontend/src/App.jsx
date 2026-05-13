@@ -6,7 +6,6 @@ import PduCard from "./components/PduCard";
 import KvmCard from "./components/KvmCard";
 import PduDetail from "./pages/PduDetail";
 import KvmDetail from "./pages/KvmDetail";
-import KvmViewerModal from "./components/KvmViewerModal";
 import AddDeviceModal from "./components/AddDeviceModal";
 
 export default function App() {
@@ -18,8 +17,18 @@ export default function App() {
   const [rackFilter, setRackFilter] = useState("all");
   const [search, setSearch] = useState("");
   const [addOpen, setAddOpen] = useState(false);
-  const [viewer, setViewer] = useState(null);           // { device, portNumber, portLabel }
   const [loading, setLoading] = useState(true);
+
+  async function openKvmConsole(deviceId, portNumber) {
+    const win = window.open("about:blank", "_blank");
+    try {
+      const resp = await fetch(`/api/kvms/${deviceId}/console-url?port=${portNumber}`);
+      const { url } = await resp.json();
+      win.location.href = url;
+    } catch {
+      win.close();
+    }
+  }
 
   const pdus = devices.filter(d => d.kind === "pdu");
   const kvms = devices.filter(d => d.kind === "kvm");
@@ -139,7 +148,7 @@ export default function App() {
   }
 
   const visiblePdus = pdus.filter(match);
-  const visibleKvms = kvms.filter(match);
+  const visibleKvms = kvms.filter(match).sort((a, b) => a.name.localeCompare(b.name));
 
   return (
     <div className="min-h-screen flex flex-col">
@@ -159,7 +168,7 @@ export default function App() {
             {(filter === "all" || filter === "kvms") && visibleKvms.map(k =>
               <KvmCard key={k.id} device={k} status={kvmStatuses[k.id]}
                 onOpen={() => setView({ kind: "kvm", id: k.id })}
-                onPortClick={(port) => setViewer({ device: k, portNumber: port.number, portLabel: port.label })}
+                onPortClick={(port) => openKvmConsole(k.id, port.number)}
               />
             )}
             {devices.length === 0 && (
@@ -189,12 +198,11 @@ export default function App() {
           device={kvms.find(k => k.id === view.id)}
           status={kvmStatuses[view.id]}
           onBack={() => setView({ kind: "dashboard" })}
-          onPortClick={(port) => setViewer({ device: kvms.find(k => k.id === view.id), portNumber: port.number, portLabel: port.label })}
+          onPortClick={(port) => openKvmConsole(view.id, port.number)}
           onDelete={() => { handleDeleteDevice(view.id); setView({ kind: "dashboard" }); }}
         />
       )}
 
-      {viewer && <KvmViewerModal {...viewer} onClose={() => setViewer(null)} />}
       {addOpen && <AddDeviceModal racks={racks} onClose={() => setAddOpen(false)} onAdd={handleAddDevice} />}
 
       <footer className="border-t border-zinc-800/80 bg-zinc-950/70 mt-auto">

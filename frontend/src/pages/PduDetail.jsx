@@ -28,18 +28,31 @@ export default function PduDetail({ device, status, onBack, onOutletAction, onDe
               </div>
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
-                {outlets.map(o => (
-                  <div key={o.number} className={`flex items-center gap-3 p-2.5 rounded-lg border ${o.state === "on" ? "border-zinc-700 bg-zinc-800/40" : "border-zinc-800 bg-zinc-900/40"}`}>
-                    <div className="w-9 text-center font-mono text-zinc-400 text-sm">{o.number}</div>
-                    <div className="flex-1 min-w-0">
-                      <div className="truncate text-sm font-medium">{o.label}</div>
-                      <div className="text-[11px] text-zinc-500 tabular-nums">
-                        {o.state === "on" ? `${o.watts}W · ${o.current}A` : o.state}
+                {outlets.map(o => {
+                  const hasName = !/^Outlet \d+$/.test(o.label);
+                  const isOn = o.state === "on";
+                  const hasWatts = o.watts > 0;
+                  const borderCls = hasName
+                    ? "border-nv-400/30 bg-nv-400/5"
+                    : "border-rose-500/25 bg-rose-500/5";
+                  return (
+                    <div key={o.number} className={`flex items-center gap-3 p-2.5 rounded-lg border ${isOn ? borderCls : "border-zinc-800 bg-zinc-900/40"}`}>
+                      <div className={`w-8 text-center font-mono text-xs shrink-0 ${hasName ? "text-nv-400/70" : "text-rose-500/60"}`}>{o.number}</div>
+                      <div className="flex-1 min-w-0">
+                        <div className={`truncate text-sm font-medium ${hasName ? "text-zinc-200" : "text-zinc-500"}`}>{o.label}</div>
+                        <div className="text-[11px] tabular-nums mt-0.5">
+                          {!isOn
+                            ? <span className="text-zinc-600">{o.state}</span>
+                            : hasWatts
+                            ? <span className="text-zinc-400">{o.watts}W · {o.current}A</span>
+                            : <span className="text-zinc-700">—</span>
+                          }
+                        </div>
                       </div>
+                      <PowerButtons outlet={o} onAction={a => onOutletAction(o.number, a)} />
                     </div>
-                    <PowerButtons outlet={o} onAction={a => onOutletAction(o.number, a)} />
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
