@@ -47,7 +47,7 @@ async def _fetch_status(device_id: str, dev: Device) -> PduStatus:
             total_watts=total_watts,
             outlets=outlets,
         )
-    except RaritanPduError as e:
+    except Exception as e:
         return PduStatus(device_id=device_id, reachable=False, error=str(e))
     finally:
         await driver.close()

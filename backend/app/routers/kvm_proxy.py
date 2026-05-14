@@ -471,7 +471,11 @@ async def kvm_proxy_ws(
     db: AsyncSession = Depends(get_db),
 ):
     dev = await _get_device(device_id, db)
-    await websocket.accept()
+
+    # Forward subprotocols so KVM handshake succeeds (e.g. binary KVM protocols)
+    proto_header = websocket.headers.get("sec-websocket-protocol", "")
+    subprotocols = [s.strip() for s in proto_header.split(",") if s.strip()]
+    await websocket.accept(subprotocol=subprotocols[0] if subprotocols else None)
 
     target_ws = f"wss://{dev.ip}/{path}"
     if websocket.url.query:
@@ -486,6 +490,7 @@ async def kvm_proxy_ws(
             target_ws,
             ssl=_ssl_ctx,
             additional_headers=extra_headers,
+            subprotocols=subprotocols or None,
             ping_interval=None,
             close_timeout=5,
         ) as ws:

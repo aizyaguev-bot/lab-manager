@@ -44,10 +44,11 @@ height:100vh;font-family:system-ui,sans-serif;color:#a1a1aa;flex-direction:colum
     fetch(`/api/kvms/${deviceId}/ports/${portNumber}/mark-in-use`, { method: "POST" });
     try {
       const resp = await fetch(`/api/kvms/${deviceId}/console-url?port=${portNumber}`);
+      if (!resp.ok) throw new Error(`Server error ${resp.status}`);
       const { url } = await resp.json();
       win.location.href = url.startsWith('/') ? window.location.origin + url : url;
-    } catch {
-      win.close();
+    } catch (e) {
+      win.document.body.innerHTML = `<div style="color:#f87171;font-size:14px;padding:24px">Failed to open KVM console: ${e.message}</div>`;
     }
   }
 

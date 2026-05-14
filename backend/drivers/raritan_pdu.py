@@ -38,7 +38,7 @@ class RaritanPduDriver:
             self._client = httpx.AsyncClient(
                 auth=self.auth,
                 verify=False,
-                timeout=TIMEOUT,
+                timeout=httpx.Timeout(connect=3.0, read=TIMEOUT, write=3.0, pool=1.0),
                 follow_redirects=True,
             )
         return self._client
