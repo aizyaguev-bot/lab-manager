@@ -331,17 +331,24 @@ async def kvm_autologin(
 body{{margin:0;background:#0a0a0a;display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui,sans-serif;color:#a1a1aa;flex-direction:column;gap:12px}}
 .dot{{width:10px;height:10px;border-radius:50%;background:#76b900;animation:p .8s ease-in-out infinite}}
 @keyframes p{{0%,100%{{opacity:.3}}50%{{opacity:1}}}}
-#cert{{display:none;flex-direction:column;align-items:center;max-width:400px;text-align:center;gap:16px}}
+#cert{{display:none;flex-direction:column;align-items:center;max-width:420px;text-align:center;gap:16px}}
 .card{{background:#18181b;border:1px solid #3f3f46;border-radius:12px;padding:24px 28px}}
-.btn{{display:inline-block;background:#76b900;color:#111;font-weight:600;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:14px}}
+.btn{{display:inline-block;background:#76b900;color:#111;font-weight:600;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:14px;cursor:pointer;border:none}}
 </style></head>
 <body>
-<div id="loading"><div class="dot"></div><div style="font-size:14px">Connecting to {dev_name_esc}…</div></div>
+<div id="loading">
+  <div class="dot"></div>
+  <div id="loading-msg" style="font-size:14px">Connecting to {dev_name_esc}…</div>
+</div>
 <div id="cert">
   <div class="card">
     <div style="font-size:16px;font-weight:600;margin-bottom:10px;color:#e4e4e7">Certificate Setup Required</div>
-    <div style="font-size:13px;line-height:1.65;margin-bottom:16px">Your browser hasn't trusted this KVM's security certificate yet.<br>Open the KVM once, accept the certificate warning, then click the port again.</div>
-    <a href="https://{kvm_ip}" target="_blank" class="btn">Open KVM &amp; Accept Certificate →</a>
+    <div style="font-size:13px;line-height:1.65;margin-bottom:16px">
+      Your browser hasn't trusted this KVM's certificate yet.<br>
+      Click below — a new tab will open. Accept the warning there,<br>
+      then <strong style="color:#e4e4e7">come back here</strong> — it will connect automatically.
+    </div>
+    <button class="btn" onclick="openCert()">Open KVM &amp; Accept Certificate →</button>
   </div>
 </div>
 <iframe id="f" name="f" style="display:none"></iframe>
@@ -357,12 +364,34 @@ body{{margin:0;background:#0a0a0a;display:flex;align-items:center;justify-conten
   <input type="hidden" name="action_login" value="Login">
 </form>
 <script>
+var KVM = "https://{kvm_ip}";
 var dst = "{jsclient_url}";
+
 function go() {{
   document.getElementById("lf").submit();
   setTimeout(function() {{ window.location.replace(dst); }}, 2000);
 }}
-fetch("https://{kvm_ip}/", {{mode:"no-cors",cache:"no-store"}})
+
+function poll() {{
+  fetch(KVM + "/", {{mode:"no-cors",cache:"no-store"}})
+    .then(function() {{
+      document.getElementById("cert").style.display = "none";
+      document.getElementById("loading").style.display = "flex";
+      document.getElementById("loading-msg").textContent = "Connecting to {dev_name_esc}…";
+      go();
+    }})
+    .catch(function() {{ setTimeout(poll, 1500); }});
+}}
+
+function openCert() {{
+  window.open(KVM + "/", "_blank");
+  document.getElementById("cert").style.display = "none";
+  document.getElementById("loading").style.display = "flex";
+  document.getElementById("loading-msg").textContent = "Waiting for certificate acceptance…";
+  setTimeout(poll, 2500);
+}}
+
+fetch(KVM + "/", {{mode:"no-cors",cache:"no-store"}})
   .then(function() {{ go(); }})
   .catch(function() {{
     document.getElementById("loading").style.display = "none";
