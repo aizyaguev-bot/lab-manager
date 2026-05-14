@@ -300,17 +300,17 @@ async def kvm_autologin(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Returns an HTML page that logs the BROWSER directly into the KVM via a hidden
-    iframe form POST (so the KVM session is bound to the browser's IP, not the VM's),
-    then navigates to jsclient after 2 seconds.
+    Returns an HTML page that:
+    1. Probes whether the browser trusts the KVM's TLS cert.
+    2. If trusted: auto-submits a login form FROM the browser (session binds to
+       the browser's IP, not the VM's), then navigates to jsclient after 2 s.
+    3. If not trusted: shows a one-time "accept the cert" card with a link.
     """
     dev = await _get_device(device_id, db)
     username = decrypt(dev.username_enc)
     password = decrypt(dev.password_enc)
 
-    # Use pre-cached portIds if available; don't block on fetching them
     port_id = _port_ids.get(device_id, {}).get(port) if port else None
-
     frag_parts = []
     if port_id:
         frag_parts.append(f"portId={port_id}")
@@ -318,45 +318,58 @@ async def kvm_autologin(
         frag_parts.append(f"portNo={port}")
     fragment = "#" + "&".join(frag_parts) if frag_parts else ""
 
-    auth_url = f"https://{dev.ip}/auth.asp?client=javascript"
-    jsclient_url = f"https://{dev.ip}/jsclient/Client.asp{fragment}"
-    dev_name = html.escape(dev.name)
-    safe_user = html.escape(username)
-    safe_pass = html.escape(password)
+    kvm_ip      = dev.ip
+    auth_url    = f"https://{kvm_ip}/auth.asp?client=javascript"
+    jsclient_url = f"https://{kvm_ip}/jsclient/Client.asp{fragment}"
+    dev_name_esc = html.escape(dev.name)
+    safe_user    = html.escape(username)
+    safe_pass    = html.escape(password)
 
-    # The form POSTs credentials from the browser, so the KVM session is tied
-    # to the browser's IP (not the VM's IP).  After 2 s the main window navigates
-    # to jsclient which picks up the cookie the iframe just set.
-    page = (
-        "<!doctype html>\n"
-        "<html><head><meta charset=\"utf-8\"><title>Connecting…</title>\n"
-        "<style>\n"
-        "body{margin:0;background:#0a0a0a;display:flex;align-items:center;justify-content:center;"
-        "height:100vh;font-family:system-ui,sans-serif;color:#a1a1aa;flex-direction:column;gap:12px}\n"
-        ".dot{width:10px;height:10px;border-radius:50%;background:#76b900;animation:p .8s ease-in-out infinite}\n"
-        "@keyframes p{0%,100%{opacity:.3}50%{opacity:1}}\n"
-        "</style></head>\n"
-        "<body>\n"
-        "<div class=\"dot\"></div>\n"
-        "<div style=\"font-size:14px\">Connecting to " + dev_name + "…</div>\n"
-        "<iframe id=\"f\" name=\"f\" style=\"display:none\"></iframe>\n"
-        "<form id=\"lf\" method=\"post\" action=\"" + auth_url + "\" target=\"f\">\n"
-        "  <input type=\"hidden\" name=\"login\" value=\"" + safe_user + "\">\n"
-        "  <input type=\"hidden\" name=\"password\" value=\"" + safe_pass + "\">\n"
-        "  <input type=\"hidden\" name=\"PIN\" value=\"\">\n"
-        "  <input type=\"hidden\" name=\"is_dotnet\" value=\"0\">\n"
-        "  <input type=\"hidden\" name=\"is_javafree\" value=\"0\">\n"
-        "  <input type=\"hidden\" name=\"is_standalone_client\" value=\"0\">\n"
-        "  <input type=\"hidden\" name=\"is_javascript_kvm_client\" value=\"1\">\n"
-        "  <input type=\"hidden\" name=\"is_javascript_rsc_client\" value=\"1\">\n"
-        "  <input type=\"hidden\" name=\"action_login\" value=\"Login\">\n"
-        "</form>\n"
-        "<script>\n"
-        "document.getElementById('lf').submit();\n"
-        "setTimeout(function(){window.location.replace('" + jsclient_url + "');},2000);\n"
-        "</script>\n"
-        "</body></html>"
-    )
+    page = f"""<!doctype html>
+<html><head><meta charset="utf-8"><title>Connecting…</title>
+<style>
+body{{margin:0;background:#0a0a0a;display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui,sans-serif;color:#a1a1aa;flex-direction:column;gap:12px}}
+.dot{{width:10px;height:10px;border-radius:50%;background:#76b900;animation:p .8s ease-in-out infinite}}
+@keyframes p{{0%,100%{{opacity:.3}}50%{{opacity:1}}}}
+#cert{{display:none;flex-direction:column;align-items:center;max-width:400px;text-align:center;gap:16px}}
+.card{{background:#18181b;border:1px solid #3f3f46;border-radius:12px;padding:24px 28px}}
+.btn{{display:inline-block;background:#76b900;color:#111;font-weight:600;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:14px}}
+</style></head>
+<body>
+<div id="loading"><div class="dot"></div><div style="font-size:14px">Connecting to {dev_name_esc}…</div></div>
+<div id="cert">
+  <div class="card">
+    <div style="font-size:16px;font-weight:600;margin-bottom:10px;color:#e4e4e7">Certificate Setup Required</div>
+    <div style="font-size:13px;line-height:1.65;margin-bottom:16px">Your browser hasn't trusted this KVM's security certificate yet.<br>Open the KVM once, accept the certificate warning, then click the port again.</div>
+    <a href="https://{kvm_ip}" target="_blank" class="btn">Open KVM &amp; Accept Certificate →</a>
+  </div>
+</div>
+<iframe id="f" name="f" style="display:none"></iframe>
+<form id="lf" method="post" action="{auth_url}" target="f">
+  <input type="hidden" name="login" value="{safe_user}">
+  <input type="hidden" name="password" value="{safe_pass}">
+  <input type="hidden" name="PIN" value="">
+  <input type="hidden" name="is_dotnet" value="0">
+  <input type="hidden" name="is_javafree" value="0">
+  <input type="hidden" name="is_standalone_client" value="0">
+  <input type="hidden" name="is_javascript_kvm_client" value="1">
+  <input type="hidden" name="is_javascript_rsc_client" value="1">
+  <input type="hidden" name="action_login" value="Login">
+</form>
+<script>
+var dst = "{jsclient_url}";
+function go() {{
+  document.getElementById("lf").submit();
+  setTimeout(function() {{ window.location.replace(dst); }}, 2000);
+}}
+fetch("https://{kvm_ip}/", {{mode:"no-cors",cache:"no-store"}})
+  .then(function() {{ go(); }})
+  .catch(function() {{
+    document.getElementById("loading").style.display = "none";
+    document.getElementById("cert").style.display = "flex";
+  }});
+</script>
+</body></html>"""
 
     return HTMLResponse(page)
 

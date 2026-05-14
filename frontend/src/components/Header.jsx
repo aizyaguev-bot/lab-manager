@@ -1,3 +1,6 @@
+/* global __BUILD_VERSION__ */
+const BUILD_VERSION = typeof __BUILD_VERSION__ !== "undefined" ? __BUILD_VERSION__ : "";
+
 export default function Header({ search, setSearch, onAdd, onHome }) {
   return (
     <header className="border-b border-zinc-800/80 bg-zinc-950/70 backdrop-blur sticky top-0 z-30">
@@ -25,6 +28,9 @@ export default function Header({ search, setSearch, onAdd, onHome }) {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 5v14M5 12h14"/></svg>
           Add Device
         </button>
+        {BUILD_VERSION && (
+          <span className="text-[11px] text-zinc-600 whitespace-nowrap font-mono">{BUILD_VERSION}</span>
+        )}
       </div>
     </header>
   );
