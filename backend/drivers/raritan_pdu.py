@@ -15,7 +15,7 @@ import asyncio
 import httpx
 from typing import Any
 
-TIMEOUT = 15.0
+TIMEOUT = 6.0
 PDU_PATH = "/model/pdu/1"
 MAX_CONCURRENT = 6  # max simultaneous connections to one PDU
 

@@ -1,4 +1,4 @@
-import json
+import json, time, asyncio
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -12,6 +12,11 @@ from drivers.raritan_kvm import RaritanKvmDriver, RaritanKvmError
 
 router = APIRouter(prefix="/api/kvms", tags=["kvms"])
 
+# { device_id: (fetched_at, KvmStatus) }
+_cache: dict[str, tuple[float, KvmStatus]] = {}
+_CACHE_TTL = 20          # seconds before data is considered stale
+_refreshing: set[str] = set()
+
 
 async def _get_kvm_or_404(device_id: str, db: AsyncSession) -> Device:
     result = await db.execute(
@@ -23,13 +28,7 @@ async def _get_kvm_or_404(device_id: str, db: AsyncSession) -> Device:
     return dev
 
 
-@router.get("/{device_id}/status", response_model=KvmStatus)
-async def kvm_status(
-    device_id: str,
-    background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_db),
-):
-    dev = await _get_kvm_or_404(device_id, db)
+async def _fetch_status(device_id: str, dev: Device) -> KvmStatus:
     username, password = get_creds(dev)
     driver = RaritanKvmDriver(dev.ip, username, password, model=dev.model)
     try:
@@ -43,13 +42,59 @@ async def kvm_status(
             if key in labels:
                 p["label"] = labels[key]
         ports = [KvmPort(**p) for p in ports_raw]
-        # Warm up the proxy session in the background so console opens instantly
-        background_tasks.add_task(ensure_session, device_id, dev)
         return KvmStatus(device_id=device_id, reachable=True, ports=ports)
     except Exception as e:
         return KvmStatus(device_id=device_id, reachable=False, error=str(e))
     finally:
         await driver.close()
+
+
+async def _refresh_background(device_id: str, dev: Device):
+    if device_id in _refreshing:
+        return
+    _refreshing.add(device_id)
+    try:
+        result = await _fetch_status(device_id, dev)
+        _cache[device_id] = (time.monotonic(), result)
+        await ensure_session(device_id, dev)
+    finally:
+        _refreshing.discard(device_id)
+
+
+@router.get("/{device_id}/status", response_model=KvmStatus)
+async def kvm_status(
+    device_id: str,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+):
+    dev = await _get_kvm_or_404(device_id, db)
+
+    cached = _cache.get(device_id)
+    age = time.monotonic() - cached[0] if cached else float("inf")
+
+    if cached and age < _CACHE_TTL:
+        # Fresh cache — serve instantly, refresh labels from DB in case they changed
+        status = cached[1]
+        labels = json.loads(dev.labels_json or "{}")
+        if labels:
+            updated_ports = []
+            for p in status.ports:
+                key = str(p.number)
+                label = labels.get(key, p.label)
+                updated_ports.append(p.model_copy(update={"label": label}))
+            status = status.model_copy(update={"ports": updated_ports})
+        return status
+
+    if cached:
+        # Stale — return old data immediately, refresh in background
+        background_tasks.add_task(_refresh_background, device_id, dev)
+        return cached[1]
+
+    # No cache yet — fetch now (first load)
+    result = await _fetch_status(device_id, dev)
+    _cache[device_id] = (time.monotonic(), result)
+    background_tasks.add_task(ensure_session, device_id, dev)
+    return result
 
 
 @router.get("/{device_id}/ports/{port_number}/viewer")

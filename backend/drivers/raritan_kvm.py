@@ -12,7 +12,7 @@ SSL verification disabled for lab self-signed certs.
 import httpx
 from typing import Optional
 
-TIMEOUT = 10.0
+TIMEOUT = 6.0
 
 
 class RaritanKvmError(Exception):
