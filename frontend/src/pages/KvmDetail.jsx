@@ -124,7 +124,7 @@ export default function KvmDetail({ device, status, onBack, onPortClick, onDelet
 
 function PortCard({ port, onClick }) {
   const active = port.status === "active";
-  const occupied = !!port.label;
+  const occupied = !!port.label && !/^port\s*\d+$/i.test(port.label);
   return (
     <button onClick={onClick}
       className={`w-full relative rounded border cursor-pointer overflow-hidden aspect-[4/3] transition

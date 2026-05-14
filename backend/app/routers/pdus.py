@@ -33,8 +33,7 @@ async def pdu_status(device_id: str, db: AsyncSession = Depends(get_db)):
         labels = json.loads(dev.labels_json or "{}")
         for o in outlets_raw:
             key = str(o["number"])
-            # Only apply DB label when firmware has no custom name (default "Outlet N")
-            if key in labels and o["label"] == f"Outlet {o['number']}":
+            if key in labels:
                 o["label"] = labels[key]
         outlets = [OutletState(**o) for o in outlets_raw]
         total_watts = sum(o.watts for o in outlets)

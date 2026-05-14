@@ -47,7 +47,7 @@ export default function KvmCard({ device, status, onOpen, onPortClick }) {
 
 function PortThumb({ port, onClick }) {
   const active = port.status === "active";
-  const occupied = !!port.label;
+  const occupied = !!port.label && !/^port\s*\d+$/i.test(port.label);
   return (
     <button onClick={onClick}
       className={`relative rounded border cursor-pointer overflow-hidden aspect-[4/3] transition

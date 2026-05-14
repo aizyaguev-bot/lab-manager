@@ -1,10 +1,31 @@
-import { Fragment } from "react";
+import { Fragment, useState } from "react";
 import StatusDot from "../components/StatusDot";
 
-export default function PduDetail({ device, status, onBack, onOutletAction, onDelete }) {
+export default function PduDetail({ device, status, onBack, onOutletAction, onDelete, onLabelsSave }) {
   if (!device) return null;
   const outlets = status?.outlets || [];
   const on = outlets.filter(o => o.state === "on").length;
+
+  const [editMode, setEditMode] = useState(false);
+  const [draftLabels, setDraftLabels] = useState({});
+  const [saving, setSaving] = useState(false);
+
+  function startEdit() {
+    const current = {};
+    outlets.forEach(o => { current[o.number] = o.label || ""; });
+    setDraftLabels(current);
+    setEditMode(true);
+  }
+
+  async function saveLabels() {
+    setSaving(true);
+    try {
+      await onLabelsSave(draftLabels);
+      setEditMode(false);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <main className="flex-1 px-6 py-5 max-w-[1600px] w-full mx-auto">
@@ -21,7 +42,26 @@ export default function PduDetail({ device, status, onBack, onOutletAction, onDe
             </a>
           </div>
           <div className="p-4">
-            <div className="text-xs uppercase tracking-wider text-zinc-500 mb-3">Outlets</div>
+            <div className="flex items-center justify-between mb-3">
+              <div className="text-xs uppercase tracking-wider text-zinc-500">Outlets</div>
+              {!editMode ? (
+                <button onClick={startEdit}
+                  className="flex items-center gap-1.5 text-xs text-zinc-400 hover:text-nv-400 px-2 py-1 rounded hover:bg-zinc-800 transition">
+                  <PencilIcon /> Edit Labels
+                </button>
+              ) : (
+                <div className="flex items-center gap-2">
+                  <button onClick={() => setEditMode(false)}
+                    className="text-xs text-zinc-400 hover:text-zinc-200 px-3 py-1 rounded border border-zinc-700 hover:bg-zinc-800 transition">
+                    Cancel
+                  </button>
+                  <button onClick={saveLabels} disabled={saving}
+                    className="text-xs bg-nv-400 hover:bg-nv-300 text-zinc-950 font-semibold px-3 py-1 rounded transition disabled:opacity-50">
+                    {saving ? "Saving…" : "Save"}
+                  </button>
+                </div>
+              )}
+            </div>
             {outlets.length === 0 ? (
               <div className="text-zinc-600 text-sm text-center py-8">
                 {status?.reachable === false ? `Cannot reach device: ${status.error}` : "Loading…"}
@@ -35,6 +75,21 @@ export default function PduDetail({ device, status, onBack, onOutletAction, onDe
                   const borderCls = hasName
                     ? "border-nv-400/30 bg-nv-400/5"
                     : "border-rose-500/25 bg-rose-500/5";
+
+                  if (editMode) {
+                    return (
+                      <div key={o.number} className="rounded-lg border border-nv-400/40 bg-nv-400/5 p-2.5 flex flex-col gap-1.5">
+                        <span className="text-xs font-mono text-zinc-500">Outlet {o.number}</span>
+                        <input
+                          value={draftLabels[o.number] ?? ""}
+                          onChange={e => setDraftLabels(d => ({ ...d, [o.number]: e.target.value }))}
+                          placeholder={`Outlet ${o.number}`}
+                          className="bg-zinc-900 border border-zinc-700 rounded px-2 py-1 text-sm text-zinc-200 focus:outline-none focus:border-nv-400 w-full"
+                        />
+                      </div>
+                    );
+                  }
+
                   return (
                     <div key={o.number} className={`flex items-center gap-3 p-2.5 rounded-lg border ${isOn ? borderCls : "border-zinc-800 bg-zinc-900/40"}`}>
                       <div className={`w-8 text-center font-mono text-xs shrink-0 ${hasName ? "text-nv-400/70" : "text-rose-500/60"}`}>{o.number}</div>
@@ -89,6 +144,15 @@ export default function PduDetail({ device, status, onBack, onOutletAction, onDe
         </aside>
       </div>
     </main>
+  );
+}
+
+function PencilIcon() {
+  return (
+    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/>
+      <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/>
+    </svg>
   );
 }
 

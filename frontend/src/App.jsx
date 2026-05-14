@@ -209,6 +209,10 @@ height:100vh;font-family:system-ui,sans-serif;color:#a1a1aa;flex-direction:colum
           onBack={() => history.back()}
           onOutletAction={(n, a) => handleOutletAction(pdus.find(p => p.id === view.id), n, a)}
           onDelete={() => { handleDeleteDevice(view.id); history.back(); }}
+          onLabelsSave={async (labels) => {
+            await api.updateLabels(view.id, labels);
+            await loadPduStatus(view.id);
+          }}
         />
       )}
 
