@@ -300,30 +300,41 @@ async def kvm_autologin(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Returns an HTML page that:
-    1. Probes whether the browser trusts the KVM's TLS cert.
-    2. If trusted: auto-submits a login form FROM the browser (session binds to
-       the browser's IP, not the VM's), then navigates to jsclient after 2 s.
-    3. If not trusted: shows a one-time "accept the cert" card with a link.
+    1. Server logs in and fetches SESSION_ID + portIds from sidebar.asp.
+    2. Returns a page that probes the KVM TLS cert (cert card if not trusted).
+    3. On cert OK: navigates browser directly to jsclient with sessionId in hash
+       so jsclient can authenticate without a separate login step.
     """
     dev = await _get_device(device_id, db)
-    username = decrypt(dev.username_enc)
-    password = decrypt(dev.password_enc)
 
-    port_id = _port_ids.get(device_id, {}).get(port) if port else None
+    # Ensure server session
+    if device_id not in _sessions:
+        async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=20) as client:
+            await _login(device_id, dev, client)
+
+    cookie_str = _sessions.get(device_id, "")
+
+    # Always fetch sidebar.asp for a fresh SESSION_ID (it changes per login)
+    info = await _get_kvm_session_info(device_id, dev, cookie_str)
+    session_id = info.get("session_id")
+    port_ids   = info.get("port_ids", {})
+    _port_ids[device_id] = port_ids  # refresh cache
+
+    port_id = port_ids.get(port) if port else None
+
     frag_parts = []
+    if session_id:
+        frag_parts.append(f"sessionId={session_id}")
     if port_id:
         frag_parts.append(f"portId={port_id}")
     if port:
         frag_parts.append(f"portNo={port}")
-    fragment = "#" + "&".join(frag_parts) if frag_parts else ""
 
-    kvm_ip      = dev.ip
-    auth_url    = f"https://{kvm_ip}/auth.asp?client=javascript"
-    jsclient_url = f"https://{kvm_ip}/jsclient/Client.asp{fragment}"
+    kvm_ip       = dev.ip
+    jsclient_url = f"https://{kvm_ip}/jsclient/Client.asp" + ("#" + "&".join(frag_parts) if frag_parts else "")
     dev_name_esc = html.escape(dev.name)
-    safe_user    = html.escape(username)
-    safe_pass    = html.escape(password)
+
+    log.info("KVM %s autologin → %s", device_id, jsclient_url)
 
     page = f"""<!doctype html>
 <html><head><meta charset="utf-8"><title>Connecting…</title>
@@ -351,26 +362,11 @@ body{{margin:0;background:#0a0a0a;display:flex;align-items:center;justify-conten
     <button class="btn" onclick="openCert()">Open KVM &amp; Accept Certificate →</button>
   </div>
 </div>
-<iframe id="f" name="f" style="display:none"></iframe>
-<form id="lf" method="post" action="{auth_url}" target="f">
-  <input type="hidden" name="login" value="{safe_user}">
-  <input type="hidden" name="password" value="{safe_pass}">
-  <input type="hidden" name="PIN" value="">
-  <input type="hidden" name="is_dotnet" value="0">
-  <input type="hidden" name="is_javafree" value="0">
-  <input type="hidden" name="is_standalone_client" value="0">
-  <input type="hidden" name="is_javascript_kvm_client" value="1">
-  <input type="hidden" name="is_javascript_rsc_client" value="1">
-  <input type="hidden" name="action_login" value="Login">
-</form>
 <script>
 var KVM = "https://{kvm_ip}";
 var dst = "{jsclient_url}";
 
-function go() {{
-  document.getElementById("lf").submit();
-  setTimeout(function() {{ window.location.replace(dst); }}, 2000);
-}}
+function go() {{ window.location.replace(dst); }}
 
 function poll() {{
   fetch(KVM + "/", {{mode:"no-cors",cache:"no-store"}})
