@@ -60,6 +60,17 @@ async def _refresh_background(device_id: str, dev: Device):
     try:
         result = await _fetch_status(device_id, dev)
         _cache[device_id] = (time.monotonic(), result)
+        # Auto-clear in-use markers when KVM reports the port as no longer active.
+        # Wait 2 min before clearing so the initial connection has time to establish.
+        if result.reachable and device_id in _in_use:
+            now = time.monotonic()
+            active_ports = {p.number for p in result.ports if p.status == "active"}
+            to_clear = [
+                pnum for pnum, exp in list(_in_use[device_id].items())
+                if pnum not in active_ports and now - (exp - _IN_USE_TTL) > 120
+            ]
+            for pnum in to_clear:
+                _in_use[device_id].pop(pnum, None)
         await ensure_session(device_id, dev)
     finally:
         _refreshing.discard(device_id)

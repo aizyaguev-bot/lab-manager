@@ -1,4 +1,4 @@
-import sys, os, base64, secrets, asyncio
+import sys, os, base64, secrets, asyncio, subprocess
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -16,6 +16,15 @@ from .config import get_settings
 from sqlalchemy import select
 
 FRONTEND_DIST = pathlib.Path(__file__).parent.parent.parent / "frontend" / "dist"
+
+try:
+    _GIT_HASH = subprocess.check_output(
+        ["git", "rev-parse", "--short", "HEAD"],
+        cwd=str(pathlib.Path(__file__).parent.parent.parent),
+        stderr=subprocess.DEVNULL,
+    ).decode().strip()
+except Exception:
+    _GIT_HASH = "unknown"
 
 
 async def _warm_cache():
@@ -74,6 +83,11 @@ app.include_router(devices.router)
 app.include_router(pdus.router)
 app.include_router(kvms.router)
 app.include_router(kvm_proxy.router)
+
+
+@app.get("/api/version")
+async def get_version():
+    return {"version": _GIT_HASH}
 
 
 # Serve built React frontend if it exists

@@ -1,7 +1,15 @@
-/* global __BUILD_VERSION__ */
-const BUILD_VERSION = typeof __BUILD_VERSION__ !== "undefined" ? __BUILD_VERSION__ : "";
+import { useState, useEffect } from "react";
 
 export default function Header({ search, setSearch, onAdd, onHome }) {
+  const [version, setVersion] = useState("");
+
+  useEffect(() => {
+    fetch("/api/version")
+      .then(r => r.json())
+      .then(d => setVersion(d.version))
+      .catch(() => {});
+  }, []);
+
   return (
     <header className="border-b border-zinc-800/80 bg-zinc-950/70 backdrop-blur sticky top-0 z-30">
       <div className="max-w-[1600px] mx-auto px-6 py-3 flex items-center gap-4">
@@ -28,8 +36,10 @@ export default function Header({ search, setSearch, onAdd, onHome }) {
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="M12 5v14M5 12h14"/></svg>
           Add Device
         </button>
-        {BUILD_VERSION && (
-          <span className="text-[11px] text-zinc-600 whitespace-nowrap font-mono">{BUILD_VERSION}</span>
+        {version && (
+          <span className="text-[11px] text-zinc-600 whitespace-nowrap font-mono" title="deployed commit">
+            {version}
+          </span>
         )}
       </div>
     </header>
