@@ -24,7 +24,7 @@ AUTH = ("", _pw) if _pw else None
 
 # Confirmed-good baseline — every deploy is compared against this.
 # Update this constant when a new baseline is established.
-BASELINE_COMMIT = "25560de"
+BASELINE_COMMIT = "d4fcc27"
 
 
 # ---------------------------------------------------------------------------
