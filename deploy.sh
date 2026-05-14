@@ -6,6 +6,16 @@ cd "$(dirname "$0")"
 echo "=== Pulling latest code ==="
 git pull
 
+echo "=== Installing test dependencies ==="
+cd backend
+pip install -q -r requirements-test.txt
+cd ..
+
+echo "=== Running unit tests (pre-deploy gate) ==="
+cd backend
+python -m pytest tests/ --ignore=tests/test_kvm_regression.py -v
+cd ..
+
 echo "=== Building frontend ==="
 cd frontend
 npm install --silent
@@ -20,11 +30,8 @@ echo "=== Restarting backend ==="
 sudo systemctl restart lab-manager
 sleep 4
 
-echo "=== Installing test dependencies ==="
+echo "=== Running regression tests (live smoke test) ==="
 cd backend
-pip install -q -r requirements-test.txt
-
-echo "=== Running regression tests ==="
 python -m pytest tests/test_kvm_regression.py -v
 cd ..
 

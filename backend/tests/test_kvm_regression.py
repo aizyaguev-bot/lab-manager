@@ -1,12 +1,12 @@
 """
-KVM regression tests — baseline commit: c73e69e
+KVM regression tests — baseline commit: 25560de (confirmed working 2026-05-14)
 
 Run on the VM (backend must be running on port 8000, KVMs must be reachable):
 
     cd /opt/lab-manager/backend
     python -m pytest tests/test_kvm_regression.py -v
 
-If LAB_MANAGER_PASSWORD is set in the environment, tests authenticate automatically.
+If LAB_MANAGER_PASSWORD is set in .env, tests authenticate automatically.
 """
 
 import os
@@ -16,13 +16,15 @@ import pytest
 from pathlib import Path
 from dotenv import load_dotenv
 
-# Load .env from repo root so LAB_MANAGER_PASSWORD is available without
-# needing to export it manually in the shell.
 load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 BASE_URL = "http://localhost:8000"
 _pw = os.getenv("LAB_MANAGER_PASSWORD", "")
 AUTH = ("", _pw) if _pw else None
+
+# Confirmed-good baseline — every deploy is compared against this.
+# Update this constant when a new baseline is established.
+BASELINE_COMMIT = "25560de"
 
 
 # ---------------------------------------------------------------------------
@@ -50,18 +52,40 @@ def reachable_kvms(kvm_devices):
 
 
 # ---------------------------------------------------------------------------
-# Basic connectivity
+# Version check — runs first, always
 # ---------------------------------------------------------------------------
 
+def test_version_not_unknown():
+    """
+    Version must not be 'unknown'.
+
+    'unknown' means backend/version.txt is missing — deploy.sh writes it
+    before restarting the service. If this fails, run deploy.sh again.
+    """
+    r = requests.get(f"{BASE_URL}/api/version", timeout=5)
+    assert r.status_code == 200, f"/api/version returned {r.status_code}"
+    v = r.json().get("version", "")
+    assert v not in ("", "unknown"), (
+        "Version is 'unknown' — backend/version.txt was not written. "
+        "Run deploy.sh (not just systemctl restart) to fix."
+    )
+    print(f"\n  Deployed : {v}")
+    print(f"  Baseline : {BASELINE_COMMIT}")
+
+
 def test_backend_version_endpoint():
-    """Backend exposes a /api/version endpoint returning the git hash."""
-    r = requests.get(f"{BASE_URL}/api/version", auth=AUTH, timeout=5)
+    """Backend exposes /api/version (public — no auth required)."""
+    r = requests.get(f"{BASE_URL}/api/version", timeout=5)
     assert r.status_code == 200
     data = r.json()
     assert "version" in data
     assert data["version"] not in ("", None)
     print(f"\n  deployed commit: {data['version']}")
 
+
+# ---------------------------------------------------------------------------
+# Basic connectivity
+# ---------------------------------------------------------------------------
 
 def test_kvm_devices_registered(kvm_devices):
     """At least one KVM is registered in the database."""
@@ -81,7 +105,7 @@ def test_kvm_status_reachable(reachable_kvms):
 
 
 # ---------------------------------------------------------------------------
-# Autologin — core regression (baseline c73e69e)
+# Autologin — core regression (baseline 25560de)
 # ---------------------------------------------------------------------------
 
 def test_autologin_returns_html(reachable_kvms):
@@ -98,10 +122,11 @@ def test_autologin_returns_html(reachable_kvms):
 
 def test_autologin_contains_session_id(reachable_kvms):
     """
-    REGRESSION: autologin HTML must contain sessionId= in the jsclient URL.
+    REGRESSION (c73e69e): autologin HTML must contain sessionId= in the jsclient URL.
 
-    Without sessionId, jsclient shows: 0x10000003 Authentication failed.
-    Fixed in commit c73e69e by fetching SESSION_ID from sidebar.asp.
+    Without sessionId jsclient shows: 0x10000003 Authentication failed.
+    Without a FRESH sessionId (stale session reused): 0x10000001 Permission denied.
+    Fixed in 25560de: always force fresh login before fetching SESSION_ID.
     """
     for kvm in reachable_kvms:
         r = requests.get(
@@ -130,8 +155,6 @@ def test_autologin_direct_to_kvm_not_proxy(reachable_kvms):
     """
     Autologin must navigate the browser DIRECTLY to the KVM's jsclient URL,
     not through our backend proxy path (/api/kvms/.../proxy/...).
-
-    The proxy approach is broken because it can't handle all KVM WebSocket auth.
     """
     for kvm in reachable_kvms:
         r = requests.get(
@@ -170,8 +193,7 @@ def test_autologin_has_cert_probe(reachable_kvms):
             f"{BASE_URL}/api/kvms/{kvm['id']}/autologin?port=1",
             auth=AUTH, timeout=20,
         )
-        html = r.text
-        assert 'no-cors' in html, \
+        assert 'no-cors' in r.text, \
             f"{kvm['name']}: cert probe (fetch no-cors) missing from autologin page"
 
 
@@ -186,5 +208,17 @@ def test_mark_in_use(reachable_kvms):
         f"{BASE_URL}/api/kvms/{kvm['id']}/ports/1/mark-in-use",
         auth=AUTH, timeout=10,
     )
+    assert r.status_code == 200
+    assert r.json().get("ok") is True
+
+
+def test_mark_free(reachable_kvms):
+    """mark-free endpoint clears all in-use markers and returns 200."""
+    kvm = reachable_kvms[0]
+    # Mark first, then clear
+    requests.post(f"{BASE_URL}/api/kvms/{kvm['id']}/ports/1/mark-in-use",
+                  auth=AUTH, timeout=10)
+    r = requests.post(f"{BASE_URL}/api/kvms/{kvm['id']}/mark-free",
+                      auth=AUTH, timeout=10)
     assert r.status_code == 200
     assert r.json().get("ok") is True
