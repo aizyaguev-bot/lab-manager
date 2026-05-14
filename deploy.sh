@@ -16,8 +16,11 @@ echo "=== Restarting backend ==="
 sudo systemctl restart lab-manager
 sleep 4
 
-echo "=== Running regression tests ==="
+echo "=== Installing test dependencies ==="
 cd backend
+pip install -q -r requirements-test.txt
+
+echo "=== Running regression tests ==="
 python -m pytest tests/test_kvm_regression.py -v
 cd ..
 
