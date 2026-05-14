@@ -1,4 +1,4 @@
-import sys, os, base64, secrets
+import sys, os, base64, secrets, asyncio
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
@@ -9,16 +9,35 @@ from fastapi.responses import FileResponse, Response
 from contextlib import asynccontextmanager
 import pathlib
 
-from .database import init_db
+from .database import init_db, AsyncSessionLocal
+from .models import Device
 from .routers import devices, pdus, kvms, kvm_proxy
 from .config import get_settings
+from sqlalchemy import select
 
 FRONTEND_DIST = pathlib.Path(__file__).parent.parent.parent / "frontend" / "dist"
+
+
+async def _warm_cache():
+    """Pre-fetch all device statuses on startup so first page load is instant."""
+    await asyncio.sleep(2)          # let DB settle
+    async with AsyncSessionLocal() as db:
+        result = await db.execute(select(Device))
+        devs = result.scalars().all()
+    tasks = []
+    for dev in devs:
+        if dev.kind == "pdu":
+            tasks.append(pdus._refresh_background(dev.id, dev))
+        elif dev.kind == "kvm":
+            tasks.append(kvms._refresh_background(dev.id, dev))
+    if tasks:
+        await asyncio.gather(*tasks, return_exceptions=True)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    asyncio.create_task(_warm_cache())
     yield
 
 
