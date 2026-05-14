@@ -307,18 +307,23 @@ async def kvm_autologin(
     """
     dev = await _get_device(device_id, db)
 
-    # Ensure server session
-    if device_id not in _sessions:
-        async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=20) as client:
-            await _login(device_id, dev, client)
+    # Always force a fresh login so the SESSION_ID is guaranteed valid.
+    # Reusing a cached/expired session causes 0x10000001 (permission denied)
+    # because sidebar.asp returns the login page and SESSION_ID is not found.
+    _sessions.pop(device_id, None)
+    _port_ids.pop(device_id, None)
+    async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=20) as client:
+        await _login(device_id, dev, client)
 
     cookie_str = _sessions.get(device_id, "")
-
-    # Always fetch sidebar.asp for a fresh SESSION_ID (it changes per login)
     info = await _get_kvm_session_info(device_id, dev, cookie_str)
     session_id = info.get("session_id")
     port_ids   = info.get("port_ids", {})
-    _port_ids[device_id] = port_ids  # refresh cache
+    _port_ids[device_id] = port_ids
+
+    if not session_id:
+        log.warning("KVM %s: sidebar.asp returned no SESSION_ID after fresh login", device_id)
+
 
     port_id = port_ids.get(port) if port else None
 
