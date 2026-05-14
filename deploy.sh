@@ -12,6 +12,10 @@ npm install --silent
 npm run build
 cd ..
 
+echo "=== Writing version ==="
+git rev-parse --short HEAD > backend/version.txt
+cat backend/version.txt
+
 echo "=== Restarting backend ==="
 sudo systemctl restart lab-manager
 sleep 4

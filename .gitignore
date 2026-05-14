@@ -19,3 +19,5 @@ backend/*.db
 backend/static/
 # Debug scripts
 probe_kvm*.py
+# Written by deploy.sh — contains current commit hash
+backend/version.txt

@@ -17,14 +17,19 @@ from sqlalchemy import select
 
 FRONTEND_DIST = pathlib.Path(__file__).parent.parent.parent / "frontend" / "dist"
 
+_VERSION_FILE = pathlib.Path(__file__).parent.parent / "version.txt"
 try:
-    _GIT_HASH = subprocess.check_output(
-        ["git", "rev-parse", "--short", "HEAD"],
-        cwd=str(pathlib.Path(__file__).parent.parent.parent),
-        stderr=subprocess.DEVNULL,
-    ).decode().strip()
+    # Primary: written by deploy.sh before service restart (reliable in systemd)
+    _GIT_HASH = _VERSION_FILE.read_text().strip()
 except Exception:
-    _GIT_HASH = "unknown"
+    try:
+        _GIT_HASH = subprocess.check_output(
+            ["/usr/bin/git", "rev-parse", "--short", "HEAD"],
+            cwd=str(pathlib.Path(__file__).parent.parent.parent),
+            stderr=subprocess.DEVNULL,
+        ).decode().strip()
+    except Exception:
+        _GIT_HASH = "unknown"
 
 
 async def _warm_cache():
