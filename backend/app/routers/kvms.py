@@ -90,8 +90,8 @@ def _apply_overlays(device_id: str, status: KvmStatus, labels: dict) -> KvmStatu
         key = str(p.number)
         if key in labels:
             overrides["label"] = labels[key]
-        if p.number in in_use and p.status != "active":
-            overrides["status"] = "active"
+        if p.number in in_use:
+            overrides["in_use"] = True
         updated_ports.append(p.model_copy(update=overrides) if overrides else p)
 
     return status.model_copy(update={"ports": updated_ports})
@@ -124,10 +124,16 @@ async def kvm_status(
 
 @router.post("/{device_id}/ports/{port}/mark-in-use", include_in_schema=False)
 async def mark_port_in_use(device_id: str, port: int):
-    """Called when a user opens a KVM console. Marks port as in-use for 4 hours."""
     if device_id not in _in_use:
         _in_use[device_id] = {}
     _in_use[device_id][port] = time.monotonic() + _IN_USE_TTL
+    return {"ok": True}
+
+
+@router.post("/{device_id}/mark-free", include_in_schema=False)
+async def mark_device_free(device_id: str):
+    """Dismiss the IN USE indicator for this device (clears all in-use markers)."""
+    _in_use.pop(device_id, None)
     return {"ok": True}
 
 

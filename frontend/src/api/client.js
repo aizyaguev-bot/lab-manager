@@ -29,4 +29,5 @@ export const api = {
   // KVM
   getKvmStatus: (id)          => req("GET",    `/api/kvms/${id}/status`),
   getViewerUrl: (id, port)    => req("GET",    `/api/kvms/${id}/ports/${port}/viewer`),
+  markKvmFree: (id)           => req("POST",   `/api/kvms/${id}/mark-free`),
 };

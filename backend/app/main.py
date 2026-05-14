@@ -57,6 +57,8 @@ async def basic_auth(request: Request, call_next):
     password = get_settings().lab_manager_password
     if not password:
         return await call_next(request)
+    if request.url.path == "/api/version":          # public — safe to expose git hash
+        return await call_next(request)
     auth = request.headers.get("Authorization", "")
     if auth.startswith("Basic "):
         try:

@@ -84,6 +84,13 @@ export default function App() {
     } catch {}
   }
 
+  async function handleMarkKvmFree(id) {
+    try {
+      await api.markKvmFree(id);
+      await loadKvmStatus(id);
+    } catch {}
+  }
+
   async function handleOutletAction(device, outletNumber, action) {
     try {
       await api.outletPower(device.id, outletNumber, action);
@@ -178,6 +185,7 @@ export default function App() {
               <KvmCard key={k.id} device={k} status={kvmStatuses[k.id]}
                 onOpen={() => openDetail({ kind: "kvm", id: k.id })}
                 onPortClick={(port) => openKvmConsole(k.id, port.number)}
+                onMarkFree={() => handleMarkKvmFree(k.id)}
               />
             )}
             {devices.length === 0 && (
@@ -213,6 +221,7 @@ export default function App() {
           onBack={() => history.back()}
           onPortClick={(port) => openKvmConsole(view.id, port.number)}
           onDelete={() => { handleDeleteDevice(view.id); history.back(); }}
+          onMarkFree={() => handleMarkKvmFree(view.id)}
           onLabelsSave={async (labels) => {
             await api.updateLabels(view.id, labels);
             await loadKvmStatus(view.id);

@@ -1,11 +1,11 @@
 import { Fragment, useState } from "react";
 import StatusDot from "../components/StatusDot";
 
-export default function KvmDetail({ device, status, onBack, onPortClick, onDelete, onLabelsSave }) {
+export default function KvmDetail({ device, status, onBack, onPortClick, onDelete, onLabelsSave, onMarkFree }) {
   if (!device) return null;
   const ports = status?.ports || [];
   const active = ports.filter(p => p.status === "active").length;
-  const activePorts = ports.filter(p => p.status === "active");
+  const inUsePorts = ports.filter(p => p.in_use);
   const isLx = device.model?.includes("LX");
 
   const [editMode, setEditMode] = useState(false);
@@ -43,10 +43,13 @@ export default function KvmDetail({ device, status, onBack, onPortClick, onDelet
               Open native UI ↗
             </a>
           </div>
-          {active > 0 && (
+          {inUsePorts.length > 0 && (
             <div className="px-4 py-2.5 bg-emerald-500/10 border-b border-emerald-500/20 text-emerald-300 text-xs flex items-center gap-2">
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
-              KVM in use — {activePorts.map(p => p.label || `Port ${p.number}`).join(", ")}
+              <span className="flex-1">KVM in use — {inUsePorts.map(p => p.label || `Port ${p.number}`).join(", ")}</span>
+              <button onClick={e => { e.stopPropagation(); onMarkFree && onMarkFree(); }}
+                title="Mark as free"
+                className="text-emerald-600 hover:text-emerald-300 transition leading-none px-1">✕</button>
             </div>
           )}
           {isLx && (

@@ -1,15 +1,15 @@
 import StatusDot from "./StatusDot";
 
-export default function KvmCard({ device, status, onOpen, onPortClick }) {
+export default function KvmCard({ device, status, onOpen, onPortClick, onMarkFree }) {
   const ports = status?.ports || [];
-  const active = ports.filter(p => p.status === "active").length;
+  const hwActive = ports.filter(p => p.status === "active").length;
+  const inUsePorts = ports.filter(p => p.in_use);
   const isLx = device.model?.includes("LX");
   const devStatus = status ? (status.reachable ? "online" : "offline") : "unknown";
-  const activePorts = ports.filter(p => p.status === "active");
 
   return (
     <div className={`bg-zinc-900/70 border rounded-xl overflow-hidden transition
-      ${active > 0 ? "border-emerald-500/40 hover:border-emerald-500/60" : "border-zinc-800 hover:border-zinc-700"}`}>
+      ${inUsePorts.length > 0 ? "border-emerald-500/40 hover:border-emerald-500/60" : "border-zinc-800 hover:border-zinc-700"}`}>
       <div className="px-4 py-3 flex items-center gap-3 border-b border-zinc-800/80">
         <div className="w-9 h-9 rounded-md bg-zinc-800/70 border border-zinc-700 flex items-center justify-center text-zinc-300">
           <KvmIcon />
@@ -18,7 +18,7 @@ export default function KvmCard({ device, status, onOpen, onPortClick }) {
           <div className="flex items-center gap-2">
             <span className="font-medium group-hover:text-nv-400 transition">{device.name}</span>
             <StatusDot status={devStatus} />
-            {active > 0 && (
+            {inUsePorts.length > 0 && (
               <span className="flex items-center gap-1 text-[10px] font-bold text-emerald-400 tracking-wide border border-emerald-500/40 bg-emerald-500/10 rounded px-1.5 py-0.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
                 IN USE
@@ -29,10 +29,13 @@ export default function KvmCard({ device, status, onOpen, onPortClick }) {
         </button>
         <button onClick={onOpen} className="text-xs text-zinc-400 hover:text-nv-400 px-2 py-1 rounded">Details →</button>
       </div>
-      {active > 0 && (
+      {inUsePorts.length > 0 && (
         <div className="px-4 py-2 bg-emerald-500/10 border-b border-emerald-500/20 text-emerald-300 text-xs flex items-center gap-2">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
-          In use — {activePorts.map(p => p.label || `P${p.number}`).join(", ")}
+          <span className="flex-1">In use — {inUsePorts.map(p => p.label || `P${p.number}`).join(", ")}</span>
+          <button onClick={e => { e.stopPropagation(); onMarkFree && onMarkFree(); }}
+            title="Mark as free"
+            className="text-emerald-600 hover:text-emerald-300 transition leading-none px-1">✕</button>
         </div>
       )}
       {isLx && (
@@ -52,7 +55,7 @@ export default function KvmCard({ device, status, onOpen, onPortClick }) {
         )}
       </div>
       <div className="px-4 py-2.5 border-t border-zinc-800/80 bg-zinc-950/40 text-xs text-zinc-400 flex justify-between">
-        <span>{ports.length > 0 ? `${active} of ${ports.length} ports active` : "—"}</span>
+        <span>{ports.length > 0 ? `${hwActive} of ${ports.length} ports active` : "—"}</span>
         <span className="text-zinc-200">{device.model?.includes("LX") ? "LX II" : "KX III"}</span>
       </div>
     </div>
