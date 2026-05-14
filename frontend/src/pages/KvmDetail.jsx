@@ -5,6 +5,7 @@ export default function KvmDetail({ device, status, onBack, onPortClick, onDelet
   if (!device) return null;
   const ports = status?.ports || [];
   const active = ports.filter(p => p.status === "active").length;
+  const activePorts = ports.filter(p => p.status === "active");
   const isLx = device.model?.includes("LX");
 
   const [editMode, setEditMode] = useState(false);
@@ -42,6 +43,12 @@ export default function KvmDetail({ device, status, onBack, onPortClick, onDelet
               Open native UI ↗
             </a>
           </div>
+          {active > 0 && (
+            <div className="px-4 py-2.5 bg-emerald-500/10 border-b border-emerald-500/20 text-emerald-300 text-xs flex items-center gap-2">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse inline-block" />
+              KVM in use — {activePorts.map(p => p.label || `Port ${p.number}`).join(", ")}
+            </div>
+          )}
           {isLx && (
             <div className="px-4 py-2 bg-amber-500/10 border-b border-amber-500/30 text-amber-300 text-xs">
               LX II unit — clicking a port opens the native viewer in a new tab

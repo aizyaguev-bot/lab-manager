@@ -40,6 +40,8 @@ height:100vh;font-family:system-ui,sans-serif;color:#a1a1aa;flex-direction:colum
 .d{width:10px;height:10px;border-radius:50%;background:#76b900;animation:p .8s ease-in-out infinite}
 @keyframes p{0%,100%{opacity:.3}50%{opacity:1}}</style></head>
 <body><div class="d"></div><div style="font-size:14px">Connecting to KVM…</div></body></html>`);
+    // Mark port as in-use so teammates see it's occupied
+    fetch(`/api/kvms/${deviceId}/ports/${portNumber}/mark-in-use`, { method: "POST" });
     try {
       const resp = await fetch(`/api/kvms/${deviceId}/console-url?port=${portNumber}`);
       const { url } = await resp.json();

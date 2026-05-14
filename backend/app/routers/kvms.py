@@ -14,8 +14,12 @@ router = APIRouter(prefix="/api/kvms", tags=["kvms"])
 
 # { device_id: (fetched_at, KvmStatus) }
 _cache: dict[str, tuple[float, KvmStatus]] = {}
-_CACHE_TTL = 20          # seconds before data is considered stale
+_CACHE_TTL = 20
 _refreshing: set[str] = set()
+
+# In-use tracking: { device_id: { port_number: expires_at (monotonic) } }
+_in_use: dict[str, dict[int, float]] = {}
+_IN_USE_TTL = 4 * 3600  # 4 hours — clears automatically if user forgets to close tab
 
 
 async def _get_kvm_or_404(device_id: str, db: AsyncSession) -> Device:
@@ -61,6 +65,27 @@ async def _refresh_background(device_id: str, dev: Device):
         _refreshing.discard(device_id)
 
 
+def _apply_overlays(device_id: str, status: KvmStatus, labels: dict) -> KvmStatus:
+    """Apply DB label overrides and in-use tracking on top of cached status."""
+    now = time.monotonic()
+    in_use = {p: exp for p, exp in _in_use.get(device_id, {}).items() if now < exp}
+
+    if not labels and not in_use:
+        return status
+
+    updated_ports = []
+    for p in status.ports:
+        overrides = {}
+        key = str(p.number)
+        if key in labels:
+            overrides["label"] = labels[key]
+        if p.number in in_use and p.status != "active":
+            overrides["status"] = "active"
+        updated_ports.append(p.model_copy(update=overrides) if overrides else p)
+
+    return status.model_copy(update={"ports": updated_ports})
+
+
 @router.get("/{device_id}/status", response_model=KvmStatus)
 async def kvm_status(
     device_id: str,
@@ -68,33 +93,31 @@ async def kvm_status(
     db: AsyncSession = Depends(get_db),
 ):
     dev = await _get_kvm_or_404(device_id, db)
+    labels = json.loads(dev.labels_json or "{}")
 
     cached = _cache.get(device_id)
     age = time.monotonic() - cached[0] if cached else float("inf")
 
     if cached and age < _CACHE_TTL:
-        # Fresh cache — serve instantly, refresh labels from DB in case they changed
-        status = cached[1]
-        labels = json.loads(dev.labels_json or "{}")
-        if labels:
-            updated_ports = []
-            for p in status.ports:
-                key = str(p.number)
-                label = labels.get(key, p.label)
-                updated_ports.append(p.model_copy(update={"label": label}))
-            status = status.model_copy(update={"ports": updated_ports})
-        return status
+        return _apply_overlays(device_id, cached[1], labels)
 
     if cached:
-        # Stale — return old data immediately, refresh in background
         background_tasks.add_task(_refresh_background, device_id, dev)
-        return cached[1]
+        return _apply_overlays(device_id, cached[1], labels)
 
-    # No cache yet — fetch now (first load)
     result = await _fetch_status(device_id, dev)
     _cache[device_id] = (time.monotonic(), result)
     background_tasks.add_task(ensure_session, device_id, dev)
-    return result
+    return _apply_overlays(device_id, result, labels)
+
+
+@router.post("/{device_id}/ports/{port}/mark-in-use", include_in_schema=False)
+async def mark_port_in_use(device_id: str, port: int):
+    """Called when a user opens a KVM console. Marks port as in-use for 4 hours."""
+    if device_id not in _in_use:
+        _in_use[device_id] = {}
+    _in_use[device_id][port] = time.monotonic() + _IN_USE_TTL
+    return {"ok": True}
 
 
 @router.get("/{device_id}/ports/{port_number}/viewer")
