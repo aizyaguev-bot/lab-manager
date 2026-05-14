@@ -13,6 +13,12 @@ import os
 import re
 import requests
 import pytest
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env from repo root so LAB_MANAGER_PASSWORD is available without
+# needing to export it manually in the shell.
+load_dotenv(Path(__file__).parent.parent.parent / ".env")
 
 BASE_URL = "http://localhost:8000"
 _pw = os.getenv("LAB_MANAGER_PASSWORD", "")
