@@ -31,25 +31,12 @@ export default function App() {
   const [addOpen, setAddOpen] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  async function openKvmConsole(deviceId, portNumber) {
-    const win = window.open("about:blank", "_blank");
-    if (!win) return;
-    win.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>Connecting…</title>
-<style>body{margin:0;background:#0a0a0a;display:flex;align-items:center;justify-content:center;
-height:100vh;font-family:system-ui,sans-serif;color:#a1a1aa;flex-direction:column;gap:12px}
-.d{width:10px;height:10px;border-radius:50%;background:#76b900;animation:p .8s ease-in-out infinite}
-@keyframes p{0%,100%{opacity:.3}50%{opacity:1}}</style></head>
-<body><div class="d"></div><div style="font-size:14px">Connecting to KVM…</div></body></html>`);
+  function openKvmConsole(deviceId, portNumber) {
     // Mark port as in-use so teammates see it's occupied
     fetch(`/api/kvms/${deviceId}/ports/${portNumber}/mark-in-use`, { method: "POST" });
-    try {
-      const resp = await fetch(`/api/kvms/${deviceId}/console-url?port=${portNumber}`);
-      if (!resp.ok) throw new Error(`Server error ${resp.status}`);
-      const { url } = await resp.json();
-      win.location.href = url.startsWith('/') ? window.location.origin + url : url;
-    } catch (e) {
-      win.document.body.innerHTML = `<div style="color:#f87171;font-size:14px;padding:24px">Failed to open KVM console: ${e.message}</div>`;
-    }
+    // autologin page logs the browser into the KVM directly (browser's IP = session IP)
+    // then navigates to jsclient after 2 s
+    window.open(`/api/kvms/${deviceId}/autologin?port=${portNumber}`, "_blank");
   }
 
   const pdus = devices.filter(d => d.kind === "pdu");
