@@ -130,6 +130,14 @@ async def mark_port_in_use(device_id: str, port: int):
     return {"ok": True}
 
 
+@router.post("/{device_id}/ports/{port}/mark-free", include_in_schema=False)
+async def mark_port_free(device_id: str, port: int):
+    """Called automatically when the KVM console tab closes."""
+    if device_id in _in_use:
+        _in_use[device_id].pop(port, None)
+    return {"ok": True}
+
+
 @router.post("/{device_id}/mark-free", include_in_schema=False)
 async def mark_device_free(device_id: str):
     """Dismiss the IN USE indicator for this device (clears all in-use markers)."""
