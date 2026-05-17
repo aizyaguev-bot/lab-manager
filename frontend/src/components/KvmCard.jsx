@@ -2,7 +2,8 @@ import StatusDot from "./StatusDot";
 
 export default function KvmCard({ device, status, onOpen, onPortClick, onMarkFree }) {
   const ports = status?.ports || [];
-  const hwActive = ports.filter(p => p.status === "active").length;
+  const isOpt = p => /^opt/i.test(p.label || "");
+  const optCount = ports.filter(isOpt).length;
   const inUsePorts = ports.filter(p => p.in_use);
   const isLx = device.model?.includes("LX");
   const devStatus = status ? (status.reachable ? "online" : "offline") : "unknown";
@@ -55,7 +56,7 @@ export default function KvmCard({ device, status, onOpen, onPortClick, onMarkFre
         )}
       </div>
       <div className="px-4 py-2.5 border-t border-zinc-800/80 bg-zinc-950/40 text-xs text-zinc-400 flex justify-between">
-        <span>{ports.length > 0 ? `${hwActive} of ${ports.length} ports active` : "—"}</span>
+        <span>{ports.length > 0 ? `${optCount} of ${ports.length} ports active` : "—"}</span>
         <span className="text-zinc-200">{device.model?.includes("LX") ? "LX II" : "KX III"}</span>
       </div>
     </div>

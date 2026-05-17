@@ -150,7 +150,7 @@ export default function App() {
     kvms.forEach(k => {
       const s = kvmStatuses[k.id];
       if (s?.ports) {
-        portsActive += s.ports.filter(p => p.status !== "empty").length;
+        portsActive += s.ports.filter(p => /^opt/i.test(p.label || "")).length;
         portsTotal  += s.ports.length;
       }
     });
