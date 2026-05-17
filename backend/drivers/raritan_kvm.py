@@ -109,9 +109,11 @@ class RaritanKvmDriver:
 def _parse_kvm_status(raw) -> str:
     if not raw:
         return "idle"
-    s = str(raw).lower()
+    s = str(raw).lower().strip()
     if s in ("connected", "active", "in-use", "inuse", "1", "true"):
         return "active"
-    if s in ("empty", "none", "no-target", "notarget"):
+    if s in ("empty", "none", "no-target", "notarget", "0",
+             "disconnected", "down", "not-connected", "not connected",
+             "unavailable", "not available"):
         return "empty"
     return "idle"

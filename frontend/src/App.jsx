@@ -32,11 +32,17 @@ export default function App() {
   const [loading, setLoading] = useState(true);
 
   function openKvmConsole(deviceId, portNumber) {
-    // Mark port as in-use so teammates see it's occupied
     fetch(`/api/kvms/${deviceId}/ports/${portNumber}/mark-in-use`, { method: "POST" });
-    // autologin page logs the browser into the KVM directly (browser's IP = session IP)
-    // then navigates to jsclient after 2 s
-    window.open(`/api/kvms/${deviceId}/autologin?port=${portNumber}`, "_blank");
+    const popup = window.open(`/api/kvms/${deviceId}/autologin?port=${portNumber}`, "_blank");
+    if (popup) {
+      const t = setInterval(() => {
+        if (popup.closed) {
+          clearInterval(t);
+          fetch(`/api/kvms/${deviceId}/ports/${portNumber}/mark-free`, { method: "POST" })
+            .then(() => loadKvmStatus(deviceId));
+        }
+      }, 2000);
+    }
   }
 
   const pdus = devices.filter(d => d.kind === "pdu");
@@ -144,7 +150,8 @@ export default function App() {
     kvms.forEach(k => {
       const s = kvmStatuses[k.id];
       if (s?.ports) {
-        portsActive += s.ports.filter(p => p.status !== "empty").length;
+        const isConnected = p => p.label && !/^(port\s*\d+|0)$/i.test(p.label.trim());
+        portsActive += s.ports.filter(isConnected).length;
         portsTotal  += s.ports.length;
       }
     });

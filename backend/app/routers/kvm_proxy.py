@@ -350,11 +350,9 @@ async def kvm_autologin(
 body{{margin:0;background:#0a0a0a;display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui,sans-serif;color:#a1a1aa;flex-direction:column;gap:12px}}
 .dot{{width:10px;height:10px;border-radius:50%;background:#76b900;animation:p .8s ease-in-out infinite}}
 @keyframes p{{0%,100%{{opacity:.3}}50%{{opacity:1}}}}
-#cert,#connected{{display:none;flex-direction:column;align-items:center;max-width:420px;text-align:center;gap:16px}}
+#cert{{display:none;flex-direction:column;align-items:center;max-width:420px;text-align:center;gap:16px}}
 .card{{background:#18181b;border:1px solid #3f3f46;border-radius:12px;padding:24px 28px}}
 .btn{{display:inline-block;background:#76b900;color:#111;font-weight:600;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:14px;cursor:pointer;border:none}}
-.btn-dim{{background:#27272a;color:#a1a1aa;border:1px solid #3f3f46;margin-top:8px}}
-.btn-dim:hover{{background:#3f3f46;color:#e4e4e7}}
 </style></head>
 <body>
 <div id="loading">
@@ -372,63 +370,13 @@ body{{margin:0;background:#0a0a0a;display:flex;align-items:center;justify-conten
     <button class="btn" onclick="openCert()">Open KVM &amp; Accept Certificate →</button>
   </div>
 </div>
-<div id="connected">
-  <div class="card" style="min-width:300px">
-    <div style="font-size:15px;font-weight:600;margin-bottom:6px;color:#e4e4e7">{dev_name_esc} — Connected</div>
-    <div style="font-size:12px;color:#52525b;line-height:1.6;margin-bottom:18px">
-      KVM console is open in the next tab.<br>
-      IN USE clears automatically when you close it.
-    </div>
-    <button class="btn btn-dim" onclick="disconnect()">Disconnect now</button>
-  </div>
-</div>
 <script>
 var KVM = "https://{kvm_ip}";
 var dst = "{jsclient_url}";
-var MARK_FREE = "{mark_free_url}";
-var popup = null;
-var watchTimer = null;
-var navigating = false;
-
-function markFree() {{
-  fetch(MARK_FREE, {{ method: "POST", keepalive: true }});
-}}
-
-function disconnect() {{
-  if (popup && !popup.closed) popup.close();
-  markFree();
-  window.close();
-}}
-
-function watchPopup() {{
-  watchTimer = setInterval(function() {{
-    if (popup && popup.closed) {{
-      clearInterval(watchTimer);
-      markFree();
-      window.close();
-    }}
-  }}, 2000);
-}}
 
 function go() {{
-  popup = window.open(dst, "_blank");
-  if (popup) {{
-    watchPopup();
-    document.getElementById("loading").style.display = "none";
-    document.getElementById("connected").style.display = "flex";
-  }} else {{
-    // Popup blocked — navigate this tab directly (no auto-clear on close)
-    navigating = true;
-    window.location.replace(dst);
-  }}
+  window.location.replace(dst);
 }}
-
-window.addEventListener("beforeunload", function() {{
-  if (!navigating) {{
-    if (watchTimer) clearInterval(watchTimer);
-    markFree();
-  }}
-}});
 
 function poll() {{
   fetch(KVM + "/", {{mode:"no-cors",cache:"no-store"}})
