@@ -9,6 +9,7 @@ Supports two device generations:
 SSL verification disabled for lab self-signed certs.
 """
 
+import re
 import httpx
 from typing import Optional
 
@@ -54,16 +55,73 @@ class RaritanKvmDriver:
     async def get_ports(self, port_count: int = 0) -> list[dict]:
         """
         Returns list of { number, label, status } for all KVM ports.
-        Tries REST API first; falls back to static list based on port_count.
+        KX III: REST API first. LX II / fallback: scrape sidebar.asp so that
+        ports without a configured target are marked 'empty' automatically.
         """
         if "LX" not in self.model:
             try:
                 return await self._get_ports_rest()
             except RaritanKvmError:
                 pass
-        # Fallback: return generic port list
+        # LX II (and KX III older firmware): scrape sidebar.asp
+        try:
+            return await self._get_ports_sidebar(port_count)
+        except Exception:
+            pass
+        # Final fallback: static list (can't distinguish empty from idle)
         return [{"number": i + 1, "label": f"Port {i + 1}", "status": "idle"}
                 for i in range(port_count)]
+
+    async def _get_ports_sidebar(self, port_count: int) -> list[dict]:
+        """
+        Scrape sidebar.asp to find which port numbers have targets configured.
+        Tries HTTP Basic auth first; falls back to form-POST session auth.
+        Configured ports → 'idle', unconfigured ports → 'empty'.
+        """
+        def _extract_configured(text: str) -> set[int]:
+            nums: set[int] = set()
+            for m in re.finditer(r"J\('PortId','[^']+'\).*?J\('PortNumber',(\d+)\)", text):
+                n = int(m.group(1))
+                if n > 0:
+                    nums.add(n)
+            return nums
+
+        def _build(configured: set[int]) -> list[dict]:
+            return [
+                {"number": i + 1, "label": f"Port {i + 1}",
+                 "status": "idle" if (i + 1) in configured else "empty"}
+                for i in range(port_count)
+            ]
+
+        # Attempt 1: Basic auth (works on most KX III / LX II firmware)
+        client = await self._client_ctx()
+        resp = await client.get(f"{self.base_url}/sidebar.asp")
+        if resp.status_code == 200:
+            nums = _extract_configured(resp.text)
+            if nums:
+                return _build(nums)
+
+        # Attempt 2: form-POST session auth (needed on some LX II firmware)
+        async with httpx.AsyncClient(verify=False, follow_redirects=True, timeout=TIMEOUT) as sc:
+            await sc.post(
+                f"{self.base_url}/auth.asp",
+                params={"client": "javascript"},
+                data={
+                    "login": self.username, "password": self.password,
+                    "PIN": "", "is_dotnet": "0", "is_javafree": "0",
+                    "is_standalone_client": "0",
+                    "is_javascript_kvm_client": "1",
+                    "is_javascript_rsc_client": "1",
+                    "action_login": "Login",
+                },
+            )
+            resp2 = await sc.get(f"{self.base_url}/sidebar.asp")
+            if resp2.status_code == 200:
+                nums = _extract_configured(resp2.text)
+                if nums:
+                    return _build(nums)
+
+        raise RaritanKvmError("sidebar.asp: no configured ports found")
 
     async def _get_ports_rest(self) -> list[dict]:
         """KX III newer firmware: REST API at /api/v1/targets."""
@@ -110,10 +168,11 @@ def _parse_kvm_status(raw) -> str:
     if not raw:
         return "idle"
     s = str(raw).lower().strip()
-    if s in ("connected", "active", "in-use", "inuse", "1", "true"):
+    if s in ("connected", "active", "in-use", "inuse", "1", "true", "busy"):
         return "active"
     if s in ("empty", "none", "no-target", "notarget", "0",
              "disconnected", "down", "not-connected", "not connected",
-             "unavailable", "not available"):
+             "unavailable", "not available", "notconfigured",
+             "not configured", "not_configured"):
         return "empty"
     return "idle"

@@ -235,3 +235,35 @@ async def test_auto_clear_keeps_still_active_port():
             await kvms_module._refresh_background(dev_id, object())
 
     assert 1 in kvms_module._in_use.get(dev_id, {})
+
+
+# ── _parse_kvm_status — driver-level status normalisation ────────────────────
+
+from drivers.raritan_kvm import _parse_kvm_status
+
+@pytest.mark.parametrize("raw,expected", [
+    # Active / in-use
+    ("connected",       "active"),
+    ("active",          "active"),
+    ("in-use",          "active"),
+    ("1",               "active"),
+    ("true",            "active"),
+    ("busy",            "active"),
+    # Idle (has device, nobody using it)
+    ("idle",            "idle"),
+    ("available",       "idle"),    # Raritan KX III REST: port ready to connect
+    # Empty — Raritan REST API / hardware values
+    ("notConfigured",   "empty"),   # KX III: port has no target configured
+    ("not configured",  "empty"),
+    ("0",               "empty"),
+    ("disconnected",    "empty"),
+    ("down",            "empty"),
+    ("unavailable",     "empty"),
+    # Edge cases
+    ("",                "idle"),
+    (None,              "idle"),
+    ("CONNECTED",       "active"),  # case-insensitive
+    ("NotConfigured",   "empty"),
+])
+def test_parse_kvm_status(raw, expected):
+    assert _parse_kvm_status(raw) == expected
